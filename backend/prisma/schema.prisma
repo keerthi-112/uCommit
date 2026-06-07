@@ -20,6 +20,10 @@ model User {
   updatedAt        DateTime @updatedAt
 
   wallet           Wallet?
+
+  participations   ChallengeParticipant[]
+  submissions      DailySubmission[]
+  transactions     WalletTransaction[]
 }
 
 model Wallet {
@@ -29,6 +33,83 @@ model Wallet {
   balance      Float @default(0)
   totalDeposit Float @default(0)
   totalRewards Float @default(0)
+
+  user         User @relation(fields: [userId], references: [id])
+}
+
+model Challenge {
+  id                String   @id @default(uuid())
+
+  title             String
+  description       String?
+
+  entryFee          Float
+
+  penaltyPercentage Float @default(10)
+
+  maxMisses         Int @default(2)
+
+  rewardPool        Float @default(0)
+
+  startDate         DateTime
+  endDate           DateTime
+
+  isActive          Boolean @default(true)
+
+  createdAt         DateTime @default(now())
+
+  participants      ChallengeParticipant[]
+  submissions       DailySubmission[]
+}
+
+model ChallengeParticipant {
+  id           String   @id @default(uuid())
+
+  userId       String
+  challengeId  String
+
+  misses       Int      @default(0)
+
+  currentStake Float
+
+  eliminated   Boolean  @default(false)
+
+  joinedAt     DateTime @default(now())
+
+  user         User @relation(fields: [userId], references: [id])
+  challenge    Challenge @relation(fields: [challengeId], references: [id])
+
+  @@unique([userId, challengeId])
+}
+
+model DailySubmission {
+  id           String   @id @default(uuid())
+
+  userId       String
+  challengeId  String
+
+  proofUrl     String?
+
+  submittedAt  DateTime @default(now())
+
+  approved     Boolean?
+
+  user         User @relation(fields: [userId], references: [id])
+  challenge    Challenge @relation(fields: [challengeId], references: [id])
+}
+
+model WalletTransaction {
+  id           String   @id @default(uuid())
+
+  userId       String
+
+  amount       Float
+
+  type         String
+
+  description  String?
+
+  createdAt    DateTime @default(now())
 
   user         User @relation(fields: [userId], references: [id])
 }
