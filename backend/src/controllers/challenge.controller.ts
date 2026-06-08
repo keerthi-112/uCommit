@@ -38,3 +38,25 @@ export const createChallenge = async (
     });
   }
 };
+
+export const getChallenges = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const challenges =
+      await prisma.challenge.findMany({
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    return res.status(200).json({
+      challenges,
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};

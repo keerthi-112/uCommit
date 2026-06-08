@@ -3,6 +3,7 @@ import cors from "cors";
 
 import authRoutes from "./routes/auth.routes";
 import challengeRoutes from "./routes/challenge.routes";
+import walletRoutes from "./routes/wallet.routes";
 
 const app = express();
 
@@ -18,6 +19,11 @@ app.use("/auth", authRoutes);
 app.use(
   "/challenges",
   challengeRoutes
+);
+
+app.use(
+  "/wallet",
+  walletRoutes
 );
 
 export default app;
