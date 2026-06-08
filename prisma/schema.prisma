@@ -13,6 +13,8 @@ model User {
   email            String   @unique
   passwordHash     String
 
+  role String @default("USER")
+
   trustScore       Int      @default(50)
   consistencyScore Int      @default(50)
 
