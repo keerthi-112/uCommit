@@ -1,3 +1,4 @@
+import submissionRoutes from "./routes/submission.routes";
 import express from "express";
 import cors from "cors";
 
@@ -6,7 +7,11 @@ import challengeRoutes from "./routes/challenge.routes";
 import walletRoutes from "./routes/wallet.routes";
 
 const app = express();
-
+app.use(express.json());
+app.use(
+  "/challenges",
+  submissionRoutes
+);
 app.use(cors());
 app.use(express.json());
 
