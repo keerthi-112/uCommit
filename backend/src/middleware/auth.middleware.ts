@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from "express";
-
-interface AuthRequest extends Request {
-  userId?: string;
-}
 import { verifyToken } from "../utils/jwt";
+
+export interface AuthRequest extends Request {
+  userId?: string;
+  role?: string;
+}
 
 export const authMiddleware = (
   req: AuthRequest,
@@ -25,6 +26,7 @@ export const authMiddleware = (
     const payload = verifyToken(token);
 
     req.userId = payload.userId;
+    req.role = payload.role;
 
     next();
   } catch {
