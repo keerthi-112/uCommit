@@ -46,6 +46,7 @@ export const register = async (
 
     const token = generateToken({
       userId: user.id,
+      role: user.role,
     });
 
     return res.status(201).json({
@@ -102,6 +103,7 @@ export const register = async (
 
     const token = generateToken({
       userId: user.id,
+      role: user.role,
     });
 
     return res.status(200).json({
