@@ -51,3 +51,59 @@ export const submitProof = async (
   });
 }
 };
+
+export const approveSubmission = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const submissionId = req.params.id as string;
+
+    const submission =
+      await prisma.dailySubmission.update({
+        where: {
+          id: submissionId,
+        },
+        data: {
+          approved: true,
+        },
+      });
+
+    return res.status(200).json({
+      message: "Submission approved",
+      submission,
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
+export const rejectSubmission = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const submissionId = req.params.id as string;
+
+    const submission =
+      await prisma.dailySubmission.update({
+        where: {
+          id: submissionId,
+        },
+        data: {
+          approved: false,
+        },
+      });
+
+    return res.status(200).json({
+      message: "Submission rejected",
+      submission,
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+}; 
