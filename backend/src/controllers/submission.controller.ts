@@ -95,15 +95,67 @@ export const rejectSubmission = async (
         data: {
           approved: false,
         },
+        include: {
+          challenge: true,
+          user: true,
+        },
       });
 
+    const participant =
+      await prisma.challengeParticipant.findFirst({
+        where: {
+          userId: submission.userId,
+          challengeId:
+            submission.challengeId,
+        },
+      });
+
+    if (!participant) {
+      return res.status(404).json({
+        message:
+          "Participant not found",
+      });
+    }
+
+    const penaltyAmount =
+      (participant.currentStake *
+        submission.challenge
+          .penaltyPercentage) /
+      100;
+
+    const updatedParticipant =
+      await prisma.challengeParticipant.update(
+        {
+          where: {
+            id: participant.id,
+          },
+          data: {
+            misses:
+              participant.misses + 1,
+
+            currentStake:
+              participant.currentStake -
+              penaltyAmount,
+
+            eliminated:
+              participant.misses + 1 >
+              submission.challenge
+                .maxMisses,
+          },
+        }
+      );
+
     return res.status(200).json({
-      message: "Submission rejected",
-      submission,
+      message:
+        "Submission rejected",
+      participant:
+        updatedParticipant,
     });
-  } catch {
+  } catch (error) {
+    console.log(error);
+
     return res.status(500).json({
       message: "Server Error",
     });
   }
-}; 
+};
