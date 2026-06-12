@@ -5,6 +5,8 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import challengeRoutes from "./routes/challenge.routes";
 import walletRoutes from "./routes/wallet.routes";
+import rewardRoutes
+from "./routes/reward.routes";
 
 const app = express();
 app.use(express.json());
@@ -14,6 +16,11 @@ app.use(
 );
 app.use(cors());
 app.use(express.json());
+
+app.use(
+  "/challenges",
+  rewardRoutes
+);
 
 app.get("/", (req, res) => {
   res.send("uCommit Backend Running");
