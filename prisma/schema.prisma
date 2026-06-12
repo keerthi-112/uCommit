@@ -52,6 +52,7 @@ model Challenge {
   maxMisses         Int @default(2)
 
   rewardPool        Float @default(0)
+  completed Boolean @default(false)
 
   startDate         DateTime
   endDate           DateTime
@@ -114,4 +115,28 @@ model WalletTransaction {
   createdAt    DateTime @default(now())
 
   user         User @relation(fields: [userId], references: [id])
+}
+
+model PlatformWallet {
+  id           String   @id @default(uuid())
+
+  balance      Float    @default(0)
+
+  totalRevenue Float    @default(0)
+
+  createdAt    DateTime @default(now())
+}
+
+model ChallengePayout {
+  id          String   @id @default(uuid())
+
+  challengeId String
+
+  userId      String
+
+  amount      Float
+
+  tier        String
+
+  createdAt   DateTime @default(now())
 }
