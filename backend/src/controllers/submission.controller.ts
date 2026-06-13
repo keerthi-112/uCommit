@@ -13,18 +13,45 @@ export const submitProof = async (
     const challengeId = req.params.id as string;
 
     const { proofUrl } = req.body;
-    
+
     const participant =
       await prisma.challengeParticipant.findFirst({
         where: {
           userId: req.userId,
-          challengeId: challengeId,
+          challengeId,
         },
       });
 
     if (!participant) {
       return res.status(400).json({
         message: "Join challenge first",
+      });
+    }
+
+    const today = new Date();
+
+    today.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    const existingSubmission =
+      await prisma.dailySubmission.findFirst({
+        where: {
+          userId: req.userId,
+          challengeId,
+          submittedAt: {
+            gte: today,
+          },
+        },
+      });
+
+    if (existingSubmission) {
+      return res.status(400).json({
+        message:
+          "Already submitted today",
       });
     }
 
@@ -42,22 +69,78 @@ export const submitProof = async (
       message: "Proof submitted",
       submission,
     });
-  } catch (error) {
-  console.log(error);
 
-  return res.status(500).json({
-    message: "Server Error",
-    error,
-  });
-}
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+      error,
+    });
+  }
 };
+
+export const getPendingSubmissions =
+  async (
+    req: Request,
+    res: Response
+  ) => {
+    try {
+      const submissions =
+        await prisma.dailySubmission.findMany({
+          where: {
+            approved: null,
+          },
+          include: {
+            user: true,
+            challenge: true,
+          },
+          orderBy: {
+            submittedAt: "desc",
+          },
+        });
+
+      return res.status(200).json({
+        submissions,
+      });
+
+    } catch (error) {
+      console.log(error);
+
+      return res.status(500).json({
+        message: "Server Error",
+      });
+    }
+  };
 
 export const approveSubmission = async (
   req: Request,
   res: Response
 ) => {
   try {
-    const submissionId = req.params.id as string;
+    const submissionId =
+      req.params.id as string;
+
+    const existing =
+      await prisma.dailySubmission.findUnique({
+        where: {
+          id: submissionId,
+        },
+      });
+
+    if (!existing) {
+      return res.status(404).json({
+        message:
+          "Submission not found",
+      });
+    }
+
+    if (existing.approved !== null) {
+      return res.status(400).json({
+        message:
+          "Submission already reviewed",
+      });
+    }
 
     const submission =
       await prisma.dailySubmission.update({
@@ -70,10 +153,14 @@ export const approveSubmission = async (
       });
 
     return res.status(200).json({
-      message: "Submission approved",
+      message:
+        "Submission approved",
       submission,
     });
-  } catch {
+
+  } catch (error) {
+    console.log(error);
+
     return res.status(500).json({
       message: "Server Error",
     });
@@ -85,7 +172,29 @@ export const rejectSubmission = async (
   res: Response
 ) => {
   try {
-    const submissionId = req.params.id as string;
+    const submissionId =
+      req.params.id as string;
+
+    const existing =
+      await prisma.dailySubmission.findUnique({
+        where: {
+          id: submissionId,
+        },
+      });
+
+    if (!existing) {
+      return res.status(404).json({
+        message:
+          "Submission not found",
+      });
+    }
+
+    if (existing.approved !== null) {
+      return res.status(400).json({
+        message:
+          "Submission already reviewed",
+      });
+    }
 
     const submission =
       await prisma.dailySubmission.update({
@@ -104,7 +213,9 @@ export const rejectSubmission = async (
     const participant =
       await prisma.challengeParticipant.findFirst({
         where: {
-          userId: submission.userId,
+          userId:
+            submission.userId,
+
           challengeId:
             submission.challengeId,
         },
@@ -118,39 +229,40 @@ export const rejectSubmission = async (
     }
 
     const penaltyAmount =
-      (participant.currentStake *
+      (
+        participant.currentStake *
         submission.challenge
-          .penaltyPercentage) /
-      100;
+          .penaltyPercentage
+      ) / 100;
 
     const updatedParticipant =
-      await prisma.challengeParticipant.update(
-        {
-          where: {
-            id: participant.id,
-          },
-          data: {
-            misses:
-              participant.misses + 1,
+      await prisma.challengeParticipant.update({
+        where: {
+          id: participant.id,
+        },
+        data: {
+          misses:
+            participant.misses + 1,
 
-            currentStake:
-              participant.currentStake -
-              penaltyAmount,
+          currentStake:
+            participant.currentStake -
+            penaltyAmount,
 
-            eliminated:
-              participant.misses + 1 >
-              submission.challenge
-                .maxMisses,
-          },
-        }
-      );
+          eliminated:
+            participant.misses + 1 >
+            submission.challenge
+              .maxMisses,
+        },
+      });
 
     return res.status(200).json({
       message:
         "Submission rejected",
+
       participant:
         updatedParticipant,
     });
+
   } catch (error) {
     console.log(error);
 
