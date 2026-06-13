@@ -1,7 +1,9 @@
 import { Router } from "express";
 
-import { completeChallenge }
-from "../controllers/reward.controller";
+import {
+  completeChallenge,
+  getRewardHistory,
+} from "../controllers/reward.controller";
 
 import { authMiddleware }
 from "../middleware/auth.middleware";
@@ -16,6 +18,12 @@ router.post(
   authMiddleware,
   adminMiddleware,
   completeChallenge
+);
+
+router.get(
+  "/history",
+  authMiddleware,
+  getRewardHistory
 );
 
 export default router;
