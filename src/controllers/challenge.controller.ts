@@ -160,3 +160,125 @@ export const joinChallenge = async (
     });
   }
 };
+
+export const getMyChallenges = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const participants =
+      await prisma.challengeParticipant.findMany({
+        where: {
+          userId: req.userId,
+        },
+        include: {
+          challenge: true,
+        },
+      });
+
+    return res.status(200).json({
+      challenges: participants,
+    });
+  } catch {
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
+export const getLeaderboard = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const challengeId =
+      req.params.id as string;
+
+    const leaderboard =
+      await prisma.challengeParticipant.findMany({
+        where: {
+          challengeId,
+        },
+        orderBy: {
+          currentStake: "desc",
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+    return res.status(200).json({
+      leaderboard,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
+export const getChallengeStats = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const challengeId =
+      req.params.id as string;
+
+    const participants =
+      await prisma.challengeParticipant.findMany({
+        where: {
+          challengeId,
+        },
+      });
+
+    const challenge =
+      await prisma.challenge.findUnique({
+        where: {
+          id: challengeId,
+        },
+      });
+
+    const totalParticipants =
+      participants.length;
+
+    const activeParticipants =
+      participants.filter(
+        (p) => !p.eliminated
+      ).length;
+
+    const eliminatedParticipants =
+      participants.filter(
+        (p) => p.eliminated
+      ).length;
+
+    const rewardPool =
+      participants.reduce(
+        (sum, p) => sum + p.currentStake,
+        0
+      );
+
+    return res.status(200).json({
+      challengeTitle:
+        challenge?.title,
+      totalParticipants,
+      activeParticipants,
+      eliminatedParticipants,
+      rewardPool,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
