@@ -277,3 +277,32 @@ export const completeChallenge = async (
     });
   }
 };
+
+export const getRewardHistory = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const userId = (req as any).userId;
+
+    const payouts =
+      await prisma.challengePayout.findMany({
+        where: {
+          userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    return res.status(200).json({
+      payouts,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};

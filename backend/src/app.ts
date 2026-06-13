@@ -18,7 +18,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use(
-  "/challenges",
+  "/rewards",
   rewardRoutes
 );
 
