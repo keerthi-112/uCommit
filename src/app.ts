@@ -7,6 +7,8 @@ import challengeRoutes from "./routes/challenge.routes";
 import walletRoutes from "./routes/wallet.routes";
 import rewardRoutes
 from "./routes/reward.routes";
+import dashboardRoutes
+from "./routes/dashboard.routes";
 
 const app = express();
 app.use(express.json());
@@ -36,6 +38,11 @@ app.use(
 app.use(
   "/wallet",
   walletRoutes
+);
+
+app.use(
+  "/dashboard",
+  dashboardRoutes
 );
 
 export default app;
