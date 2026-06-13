@@ -128,15 +128,16 @@ model PlatformWallet {
 }
 
 model ChallengePayout {
-  id          String   @id @default(uuid())
+  id            String   @id @default(uuid())
 
-  challengeId String
+  challengeId   String
+  userId        String
 
-  userId      String
+  stakeRefund   Float
+  rewardAmount  Float
+  amount        Float
 
-  amount      Float
+  tier          String
 
-  tier        String
-
-  createdAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
 }
