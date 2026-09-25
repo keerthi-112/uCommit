@@ -28,6 +28,19 @@ interface Participation {
   challenge: Challenge;
 }
 
+interface Submission {
+  id: string;
+  proofUrl: string | null;
+  submittedAt: string;
+  approved: boolean | null;
+}
+
+interface SubmissionState {
+  today: Submission | null;
+  approvedCount: number;
+  pendingCount: number;
+}
+
 const cardStyle = {
   background: "#111827",
   border: "1px solid #1E293B",
@@ -55,6 +68,18 @@ const formatDate = (iso: string) =>
     }
   );
 
+const isToday = (iso: string) => {
+  const d = new Date(iso);
+  const now = new Date();
+
+  return (
+    d.getFullYear() ===
+      now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+};
+
 /** Total length of the challenge window, in whole days (minimum 1). */
 const totalDays = (
   challenge: Challenge
@@ -74,8 +99,7 @@ const totalDays = (
 
 /**
  * How far through the challenge window we are today, in days.
- * This is elapsed time, not days completed - the backend does not
- * yet expose per-user submission history.
+ * This is elapsed time, not days completed.
  */
 const elapsedDays = (
   challenge: Challenge
@@ -132,7 +156,11 @@ const statusOf = (
 
 const STATUS_STYLES: Record<
   Status,
-  { label: string; color: string; bg: string }
+  {
+    label: string;
+    color: string;
+    bg: string;
+  }
 > = {
   ELIMINATED: {
     label: "Eliminated",
@@ -161,15 +189,69 @@ const STATUS_STYLES: Record<
   },
 };
 
+const labelStyle = {
+  color: "#64748B",
+  fontSize: "14px",
+};
+
+const valueStyle = {
+  fontSize: "20px",
+  fontWeight: 700,
+};
+
 export default function MyChallengesPage() {
   const [participations, setParticipations] =
     useState<Participation[]>([]);
+
+  const [submissions, setSubmissions] =
+    useState<
+      Record<string, SubmissionState>
+    >({});
 
   const [loading, setLoading] =
     useState(true);
 
   const [error, setError] =
     useState("");
+
+  const [proofInputs, setProofInputs] =
+    useState<Record<string, string>>(
+      {}
+    );
+
+  const [submittingId, setSubmittingId] =
+    useState<string | null>(null);
+
+  const [submitErrors, setSubmitErrors] =
+    useState<Record<string, string>>(
+      {}
+    );
+
+  /** Loads a single challenge's submission state for the current user. */
+  const loadSubmissions = async (
+    challengeId: string
+  ) => {
+    const res = await api.get(
+      `/challenges/${challengeId}/submissions`
+    );
+
+    const list: Submission[] =
+      res.data.submissions ?? [];
+
+    setSubmissions((prev) => ({
+      ...prev,
+      [challengeId]: {
+        today:
+          list.find((s) =>
+            isToday(s.submittedAt)
+          ) ?? null,
+        approvedCount:
+          res.data.approvedCount ?? 0,
+        pendingCount:
+          res.data.pendingCount ?? 0,
+      },
+    }));
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -181,8 +263,21 @@ export default function MyChallengesPage() {
           "/challenges/my"
         );
 
-        setParticipations(
-          response.data.challenges ?? []
+        const rows: Participation[] =
+          response.data.challenges ?? [];
+
+        setParticipations(rows);
+
+        // Submission history is per challenge, so fetch them together.
+        await Promise.all(
+          rows.map((p) =>
+            loadSubmissions(
+              p.challengeId
+            ).catch(() => {
+              // A failure here only costs us the proof panel
+              // for that one card.
+            })
+          )
         );
       } catch (err: any) {
         setError(
@@ -198,6 +293,55 @@ export default function MyChallengesPage() {
     load();
   }, []);
 
+  const handleSubmitProof = async (
+    challengeId: string
+  ) => {
+    const proofUrl = (
+      proofInputs[challengeId] ?? ""
+    ).trim();
+
+    if (!proofUrl) {
+      setSubmitErrors((prev) => ({
+        ...prev,
+        [challengeId]:
+          "Add a link to your proof first.",
+      }));
+
+      return;
+    }
+
+    setSubmittingId(challengeId);
+
+    setSubmitErrors((prev) => ({
+      ...prev,
+      [challengeId]: "",
+    }));
+
+    try {
+      await api.post(
+        `/challenges/${challengeId}/submit`,
+        { proofUrl }
+      );
+
+      setProofInputs((prev) => ({
+        ...prev,
+        [challengeId]: "",
+      }));
+
+      await loadSubmissions(challengeId);
+    } catch (err: any) {
+      setSubmitErrors((prev) => ({
+        ...prev,
+        [challengeId]:
+          err?.response?.data
+            ?.message ||
+          "Could not submit your proof. Please try again.",
+      }));
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
   // Every figure below is derived from the participation rows above.
   const activeCount =
     participations.filter(
@@ -206,8 +350,7 @@ export default function MyChallengesPage() {
 
   const completedCount =
     participations.filter(
-      (p) =>
-        statusOf(p) === "COMPLETED"
+      (p) => statusOf(p) === "COMPLETED"
     ).length;
 
   const eliminatedCount =
@@ -441,6 +584,19 @@ export default function MyChallengesPage() {
                         .entryFee -
                       p.currentStake;
 
+                    const subs =
+                      submissions[
+                        p.challengeId
+                      ];
+
+                    const today =
+                      subs?.today ??
+                      null;
+
+                    const busy =
+                      submittingId ===
+                      p.challengeId;
+
                     return (
                       <motion.div
                         key={p.id}
@@ -546,31 +702,46 @@ export default function MyChallengesPage() {
                             display:
                               "grid",
                             gridTemplateColumns:
-                              "repeat(auto-fit,minmax(160px,1fr))",
+                              "repeat(auto-fit,minmax(150px,1fr))",
                             gap: "16px",
-                            marginBottom:
-                              "8px",
                           }}
                         >
                           <div>
                             <p
+                              style={
+                                labelStyle
+                              }
+                            >
+                              Approved days
+                            </p>
+
+                            <p
                               style={{
+                                ...valueStyle,
                                 color:
-                                  "#64748B",
-                                fontSize:
-                                  "14px",
+                                  "#4ADE80",
                               }}
+                            >
+                              {subs
+                                ? subs.approvedCount
+                                : "—"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p
+                              style={
+                                labelStyle
+                              }
                             >
                               Stake
                               remaining
                             </p>
 
                             <p
-                              style={{
-                                fontSize:
-                                  "20px",
-                                fontWeight: 700,
-                              }}
+                              style={
+                                valueStyle
+                              }
                             >
                               {formatMoney(
                                 p.currentStake
@@ -580,21 +751,16 @@ export default function MyChallengesPage() {
 
                           <div>
                             <p
-                              style={{
-                                color:
-                                  "#64748B",
-                                fontSize:
-                                  "14px",
-                              }}
+                              style={
+                                labelStyle
+                              }
                             >
                               Misses used
                             </p>
 
                             <p
                               style={{
-                                fontSize:
-                                  "20px",
-                                fontWeight: 700,
+                                ...valueStyle,
                                 color:
                                   p.misses >
                                   0
@@ -613,12 +779,9 @@ export default function MyChallengesPage() {
 
                           <div>
                             <p
-                              style={{
-                                color:
-                                  "#64748B",
-                                fontSize:
-                                  "14px",
-                              }}
+                              style={
+                                labelStyle
+                              }
                             >
                               Lost to
                               penalties
@@ -626,9 +789,7 @@ export default function MyChallengesPage() {
 
                             <p
                               style={{
-                                fontSize:
-                                  "20px",
-                                fontWeight: 700,
+                                ...valueStyle,
                                 color:
                                   lost > 0
                                     ? "#FCA5A5"
@@ -643,22 +804,17 @@ export default function MyChallengesPage() {
 
                           <div>
                             <p
-                              style={{
-                                color:
-                                  "#64748B",
-                                fontSize:
-                                  "14px",
-                              }}
+                              style={
+                                labelStyle
+                              }
                             >
                               Joined
                             </p>
 
                             <p
-                              style={{
-                                fontSize:
-                                  "20px",
-                                fontWeight: 700,
-                              }}
+                              style={
+                                valueStyle
+                              }
                             >
                               {formatDate(
                                 p.joinedAt
@@ -666,6 +822,232 @@ export default function MyChallengesPage() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Today's proof - only while the challenge runs */}
+                        {status ===
+                          "ACTIVE" && (
+                          <div
+                            style={{
+                              marginTop:
+                                "24px",
+                              paddingTop:
+                                "24px",
+                              borderTop:
+                                "1px solid #1E293B",
+                            }}
+                          >
+                            <h3
+                              style={{
+                                fontSize:
+                                  "18px",
+                                marginBottom:
+                                  "14px",
+                              }}
+                            >
+                              Today's proof
+                            </h3>
+
+                            {today ? (
+                              <div
+                                style={{
+                                  display:
+                                    "flex",
+                                  alignItems:
+                                    "center",
+                                  gap: "14px",
+                                  flexWrap:
+                                    "wrap",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    padding:
+                                      "8px 16px",
+                                    borderRadius:
+                                      "999px",
+                                    fontWeight: 700,
+                                    fontSize:
+                                      "14px",
+
+                                    background:
+                                      today.approved ===
+                                      true
+                                        ? "rgba(34,197,94,0.15)"
+                                        : today.approved ===
+                                          false
+                                        ? "rgba(239,68,68,0.15)"
+                                        : "rgba(245,158,11,0.15)",
+
+                                    color:
+                                      today.approved ===
+                                      true
+                                        ? "#4ADE80"
+                                        : today.approved ===
+                                          false
+                                        ? "#FCA5A5"
+                                        : "#FCD34D",
+                                  }}
+                                >
+                                  {today.approved ===
+                                  true
+                                    ? "Approved"
+                                    : today.approved ===
+                                      false
+                                    ? "Rejected"
+                                    : "Awaiting review"}
+                                </span>
+
+                                {today.proofUrl && (
+                                  <a
+                                    href={
+                                      today.proofUrl
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      color:
+                                        "#60A5FA",
+                                      fontSize:
+                                        "14px",
+                                      wordBreak:
+                                        "break-all",
+                                    }}
+                                  >
+                                    {
+                                      today.proofUrl
+                                    }
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <div
+                                  style={{
+                                    display:
+                                      "flex",
+                                    gap: "12px",
+                                    flexWrap:
+                                      "wrap",
+                                  }}
+                                >
+                                  <input
+                                    value={
+                                      proofInputs[
+                                        p
+                                          .challengeId
+                                      ] ?? ""
+                                    }
+                                    onChange={(
+                                      e
+                                    ) =>
+                                      setProofInputs(
+                                        (
+                                          prev
+                                        ) => ({
+                                          ...prev,
+                                          [p.challengeId]:
+                                            e
+                                              .target
+                                              .value,
+                                        })
+                                      )
+                                    }
+                                    onKeyDown={(
+                                      e
+                                    ) => {
+                                      if (
+                                        e.key ===
+                                        "Enter"
+                                      )
+                                        handleSubmitProof(
+                                          p.challengeId
+                                        );
+                                    }}
+                                    placeholder="Link to your proof - photo, screenshot, commit..."
+                                    style={{
+                                      flex: 1,
+                                      minWidth:
+                                        "260px",
+                                      padding:
+                                        "14px 16px",
+                                      borderRadius:
+                                        "14px",
+                                      background:
+                                        "#0B1220",
+                                      border:
+                                        "1px solid #1E293B",
+                                      color:
+                                        "#F8FAFC",
+                                      fontSize:
+                                        "15px",
+                                    }}
+                                  />
+
+                                  <button
+                                    onClick={() =>
+                                      handleSubmitProof(
+                                        p.challengeId
+                                      )
+                                    }
+                                    disabled={
+                                      busy
+                                    }
+                                    style={{
+                                      background:
+                                        busy
+                                          ? "#1E293B"
+                                          : "linear-gradient(135deg,#22C55E,#4ADE80)",
+                                      color:
+                                        busy
+                                          ? "#64748B"
+                                          : "#081018",
+                                      border:
+                                        "none",
+                                      padding:
+                                        "14px 26px",
+                                      borderRadius:
+                                        "14px",
+                                      fontWeight: 700,
+                                      fontSize:
+                                        "15px",
+                                      cursor:
+                                        busy
+                                          ? "not-allowed"
+                                          : "pointer",
+                                    }}
+                                  >
+                                    {busy
+                                      ? "Submitting..."
+                                      : "Submit Proof"}
+                                  </button>
+                                </div>
+
+                                {submitErrors[
+                                  p
+                                    .challengeId
+                                ] && (
+                                  <p
+                                    style={{
+                                      color:
+                                        "#FCA5A5",
+                                      marginTop:
+                                        "12px",
+                                      fontSize:
+                                        "14px",
+                                    }}
+                                  >
+                                    {
+                                      submitErrors[
+                                        p
+                                          .challengeId
+                                      ]
+                                    }
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </motion.div>
                     );
                   }
