@@ -28,6 +28,63 @@ export const submitProof = async (
       });
     }
 
+    if (participant.eliminated) {
+      return res.status(400).json({
+        message:
+          "You have been eliminated from this challenge",
+      });
+    }
+
+    const challenge =
+      await prisma.challenge.findUnique({
+        where: {
+          id: challengeId,
+        },
+      });
+
+    if (!challenge) {
+      return res.status(404).json({
+        message: "Challenge not found",
+      });
+    }
+
+    if (challenge.completed) {
+      return res.status(400).json({
+        message:
+          "This challenge has already been completed",
+      });
+    }
+
+    if (
+      challenge.startDate.getTime() >
+      Date.now()
+    ) {
+      return res.status(400).json({
+        message:
+          "This challenge has not started yet",
+      });
+    }
+
+    if (
+      challenge.endDate.getTime() <=
+      Date.now()
+    ) {
+      return res.status(400).json({
+        message:
+          "This challenge has already ended",
+      });
+    }
+
+    if (
+      typeof proofUrl !== "string" ||
+      proofUrl.trim().length === 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Proof is required to submit",
+      });
+    }
+
     const today = new Date();
 
     today.setHours(
@@ -60,7 +117,7 @@ export const submitProof = async (
         data: {
           userId: req.userId!,
           challengeId,
-          proofUrl,
+          proofUrl: proofUrl.trim(),
           approved: null,
         },
       });
@@ -80,6 +137,60 @@ export const submitProof = async (
   }
 };
 
+/**
+ * A user's own submissions for one challenge.
+ * Always scoped to req.userId, so it can never expose
+ * another participant's proof history.
+ */
+export const getMySubmissions = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const challengeId = req.params
+      .id as string;
+
+    const submissions =
+      await prisma.dailySubmission.findMany({
+        where: {
+          userId: req.userId,
+          challengeId,
+        },
+        orderBy: {
+          submittedAt: "desc",
+        },
+        select: {
+          id: true,
+          proofUrl: true,
+          submittedAt: true,
+          approved: true,
+        },
+      });
+
+    const approvedCount =
+      submissions.filter(
+        (s) => s.approved === true
+      ).length;
+
+    const pendingCount =
+      submissions.filter(
+        (s) => s.approved === null
+      ).length;
+
+    return res.status(200).json({
+      submissions,
+      approvedCount,
+      pendingCount,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
 export const getPendingSubmissions =
   async (
     req: Request,
@@ -92,7 +203,14 @@ export const getPendingSubmissions =
             approved: null,
           },
           include: {
-            user: true,
+            // Explicit select: never leak passwordHash to the client.
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
             challenge: true,
           },
           orderBy: {

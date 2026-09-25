@@ -5,6 +5,7 @@ import {
   approveSubmission,
   rejectSubmission,
   getPendingSubmissions,
+  getMySubmissions,
 } from "../controllers/submission.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { adminMiddleware } from "../middleware/admin.middleware";
@@ -15,6 +16,12 @@ router.post(
   "/:id/submit",
   authMiddleware,
   submitProof
+);
+
+router.get(
+  "/:id/submissions",
+  authMiddleware,
+  getMySubmissions
 );
 router.post(
   "/submissions/:id/approve",

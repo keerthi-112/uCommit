@@ -128,15 +128,23 @@ export const me = async (
   res: Response
 ) => {
   try {
+    // Explicit select: never leak passwordHash to the client.
     const user =
-  await prisma.user.findUnique({
-    where: {
-      id: (req as any).userId,
-    },
-    include: {
-      wallet: true,
-    },
-  });
+      await prisma.user.findUnique({
+        where: {
+          id: (req as any).userId,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          trustScore: true,
+          consistencyScore: true,
+          createdAt: true,
+          wallet: true,
+        },
+      });
 
     if (!user) {
       return res.status(404).json({

@@ -1,28 +1,20 @@
-import submissionRoutes from "./routes/submission.routes";
 import express from "express";
 import cors from "cors";
 
 import authRoutes from "./routes/auth.routes";
 import challengeRoutes from "./routes/challenge.routes";
+import submissionRoutes from "./routes/submission.routes";
 import walletRoutes from "./routes/wallet.routes";
-import rewardRoutes
-from "./routes/reward.routes";
-import dashboardRoutes
-from "./routes/dashboard.routes";
+import rewardRoutes from "./routes/reward.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 
 const app = express();
-app.use(express.json());
-app.use(
-  "/challenges",
-  submissionRoutes
-);
+
+// Global middleware must run before any route, otherwise responses from
+// routes mounted earlier are sent without CORS headers and the browser
+// blocks them.
 app.use(cors());
 app.use(express.json());
-
-app.use(
-  "/rewards",
-  rewardRoutes
-);
 
 app.get("/", (req, res) => {
   res.send("uCommit Backend Running");
@@ -30,19 +22,16 @@ app.get("/", (req, res) => {
 
 app.use("/auth", authRoutes);
 
-app.use(
-  "/challenges",
-  challengeRoutes
-);
+// Both routers are mounted on /challenges. submissionRoutes stays first
+// so its specific paths (/pending, /submissions/:id/...) are matched
+// before challengeRoutes' parameterised ones.
+app.use("/challenges", submissionRoutes);
+app.use("/challenges", challengeRoutes);
 
-app.use(
-  "/wallet",
-  walletRoutes
-);
+app.use("/wallet", walletRoutes);
 
-app.use(
-  "/dashboard",
-  dashboardRoutes
-);
+app.use("/rewards", rewardRoutes);
+
+app.use("/dashboard", dashboardRoutes);
 
 export default app;

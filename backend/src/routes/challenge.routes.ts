@@ -27,11 +27,13 @@ router.get(
 
 router.get(
   "/:id/leaderboard",
+  authMiddleware,
   getLeaderboard
 );
 
 router.get(
   "/:id/stats",
+  authMiddleware,
   getChallengeStats
 );
 

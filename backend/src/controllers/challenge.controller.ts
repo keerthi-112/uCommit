@@ -1,8 +1,26 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import prisma from "../prisma/client";
 
 interface AuthRequest extends Request {
   userId?: string;
+}
+
+/**
+ * Thrown inside the join transaction to abort it with a specific
+ * HTTP status. Throwing rolls the whole transaction back, so the
+ * wallet is never debited unless the participant row is created too.
+ */
+class JoinError extends Error {
+  status: number;
+
+  constructor(
+    status: number,
+    message: string
+  ) {
+    super(message);
+    this.status = status;
+  }
 }
 
 export const createChallenge = async (
@@ -53,6 +71,13 @@ export const getChallenges = async (
         orderBy: {
           createdAt: "desc",
         },
+        include: {
+          _count: {
+            select: {
+              participants: true,
+            },
+          },
+        },
       });
 
     return res.status(200).json({
@@ -69,92 +94,203 @@ export const joinChallenge = async (
   req: AuthRequest,
   res: Response
 ) => {
+  const challengeId = req.params
+    .id as string;
+
+  const userId = req.userId!;
+
   try {
-    const challengeId = req.params.id as string;
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          const challenge =
+            await tx.challenge.findUnique(
+              {
+                where: {
+                  id: challengeId,
+                },
+              }
+            );
 
-    const challenge =
-      await prisma.challenge.findUnique({
-        where: {
-          id: challengeId,
-        },
-      });
+          if (!challenge) {
+            throw new JoinError(
+              404,
+              "Challenge not found"
+            );
+          }
 
-    if (!challenge) {
-      return res.status(404).json({
-        message: "Challenge not found",
-      });
-    }
+          if (challenge.completed) {
+            throw new JoinError(
+              400,
+              "This challenge has already been completed"
+            );
+          }
 
-    const wallet =
-      await prisma.wallet.findUnique({
-        where: {
-          userId: req.userId!,
-        },
-      });
+          if (!challenge.isActive) {
+            throw new JoinError(
+              400,
+              "This challenge is no longer open to join"
+            );
+          }
 
-    if (!wallet) {
-      return res.status(404).json({
-        message: "Wallet not found",
-      });
-    }
+          if (
+            challenge.endDate.getTime() <=
+            Date.now()
+          ) {
+            throw new JoinError(
+              400,
+              "This challenge has already ended"
+            );
+          }
 
-    if (
-      wallet.balance <
-      challenge.entryFee
-    ) {
-      return res.status(400).json({
-        message:
-          "Insufficient wallet balance",
-      });
-    }
+          const existingParticipant =
+            await tx.challengeParticipant.findUnique(
+              {
+                where: {
+                  userId_challengeId: {
+                    userId,
+                    challengeId,
+                  },
+                },
+              }
+            );
 
-    const existingParticipant =
-      await prisma.challengeParticipant.findFirst(
-        {
-          where: {
-            userId: req.userId!,
-            challengeId,
-          },
-        }
-      );
+          if (existingParticipant) {
+            throw new JoinError(
+              409,
+              "You have already joined this challenge"
+            );
+          }
 
-    if (existingParticipant) {
-      return res.status(400).json({
-        message:
-          "Already joined challenge",
-      });
-    }
+          const wallet =
+            await tx.wallet.findUnique({
+              where: {
+                userId,
+              },
+            });
 
-    await prisma.wallet.update({
-      where: {
-        id: wallet.id,
-      },
-      data: {
-        balance:
-          wallet.balance -
-          challenge.entryFee,
-      },
-    });
+          if (!wallet) {
+            throw new JoinError(
+              404,
+              "Wallet not found"
+            );
+          }
 
-    const participant =
-      await prisma.challengeParticipant.create(
-        {
-          data: {
-            userId: req.userId!,
-            challengeId,
+          if (
+            wallet.balance <
+            challenge.entryFee
+          ) {
+            throw new JoinError(
+              400,
+              "Insufficient wallet balance"
+            );
+          }
 
-            currentStake:
-              challenge.entryFee,
-          },
+          // Conditional debit: the balance check lives in the WHERE
+          // clause, so two concurrent joins can never both push the
+          // balance negative. count === 0 means another request spent
+          // the money between our read and this write.
+          const debited =
+            await tx.wallet.updateMany({
+              where: {
+                id: wallet.id,
+                balance: {
+                  gte: challenge.entryFee,
+                },
+              },
+              data: {
+                balance: {
+                  decrement:
+                    challenge.entryFee,
+                },
+              },
+            });
+
+          if (debited.count === 0) {
+            throw new JoinError(
+              400,
+              "Insufficient wallet balance"
+            );
+          }
+
+          const participant =
+            await tx.challengeParticipant.create(
+              {
+                data: {
+                  userId,
+                  challengeId,
+
+                  currentStake:
+                    challenge.entryFee,
+                },
+              }
+            );
+
+          // Audit trail for money leaving the wallet.
+          // Debits are recorded as negative amounts.
+          await tx.walletTransaction.create(
+            {
+              data: {
+                userId,
+
+                amount:
+                  -challenge.entryFee,
+
+                type: "CHALLENGE_STAKE",
+
+                description:
+                  "Stake for challenge: " +
+                  challenge.title,
+              },
+            }
+          );
+
+          const updatedWallet =
+            await tx.wallet.findUnique({
+              where: {
+                id: wallet.id,
+              },
+            });
+
+          return {
+            participant,
+            wallet: updatedWallet,
+          };
         }
       );
 
     return res.status(201).json({
       message:
         "Joined challenge successfully",
-      participant,
+
+      participant: result.participant,
+
+      wallet: result.wallet,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof JoinError) {
+      return res
+        .status(error.status)
+        .json({
+          message: error.message,
+        });
+    }
+
+    // Unique constraint on (userId, challengeId): a concurrent request
+    // won the race. The transaction rolled back, so no money was taken.
+    if (
+      error instanceof
+        Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return res.status(409).json({
+        message:
+          "You have already joined this challenge",
+      });
+    }
+
+    console.log(error);
+
     return res.status(500).json({
       message: "Server Error",
     });
@@ -191,8 +327,8 @@ export const getLeaderboard = async (
   res: Response
 ) => {
   try {
-    const challengeId =
-      req.params.id as string;
+    const challengeId = req.params
+      .id as string;
 
     const leaderboard =
       await prisma.challengeParticipant.findMany({
@@ -207,7 +343,6 @@ export const getLeaderboard = async (
             select: {
               id: true,
               name: true,
-              email: true,
             },
           },
         },
@@ -230,8 +365,8 @@ export const getChallengeStats = async (
   res: Response
 ) => {
   try {
-    const challengeId =
-      req.params.id as string;
+    const challengeId = req.params
+      .id as string;
 
     const participants =
       await prisma.challengeParticipant.findMany({
@@ -267,8 +402,7 @@ export const getChallengeStats = async (
       );
 
     return res.status(200).json({
-      challengeTitle:
-        challenge?.title,
+      challengeTitle: challenge?.title,
       totalParticipants,
       activeParticipants,
       eliminatedParticipants,
