@@ -322,6 +322,96 @@ export const getMyChallenges = async (
   }
 };
 
+/**
+ * Community totals for the insights page. Aggregate counts only - no
+ * individual's data is exposed here.
+ */
+export const getCommunityStats = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const now = new Date();
+
+    const [
+      totalMembers,
+      activeChallenges,
+      totalCommitments,
+      approvedSubmissions,
+      participants,
+    ] = await Promise.all([
+      prisma.user.count(),
+
+      prisma.challenge.count({
+        where: {
+          completed: false,
+          endDate: { gt: now },
+        },
+      }),
+
+      prisma.challengeParticipant.count(),
+
+      prisma.dailySubmission.count({
+        where: { approved: true },
+      }),
+
+      prisma.challengeParticipant.findMany(
+        {
+          where: {
+            challenge: {
+              completed: false,
+            },
+          },
+          select: {
+            misses: true,
+            eliminated: true,
+          },
+        }
+      ),
+    ]);
+
+    // Mutually exclusive buckets, so the counts sum to the total.
+    const eliminated = participants.filter(
+      (p) => p.eliminated
+    ).length;
+
+    const surviving = participants.filter(
+      (p) => !p.eliminated
+    );
+
+    return res.status(200).json({
+      totalMembers,
+      activeChallenges,
+      totalCommitments,
+      approvedSubmissions,
+
+      cohort: {
+        onTrack: surviving.filter(
+          (p) => p.misses === 0
+        ).length,
+
+        missedOnce: surviving.filter(
+          (p) => p.misses === 1
+        ).length,
+
+        missedTwice: surviving.filter(
+          (p) => p.misses >= 2
+        ).length,
+
+        eliminated,
+
+        total: participants.length,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
 export const getLeaderboard = async (
   req: Request,
   res: Response
@@ -330,13 +420,10 @@ export const getLeaderboard = async (
     const challengeId = req.params
       .id as string;
 
-    const leaderboard =
+    const participants =
       await prisma.challengeParticipant.findMany({
         where: {
           challengeId,
-        },
-        orderBy: {
-          currentStake: "desc",
         },
         include: {
           user: {
@@ -347,6 +434,57 @@ export const getLeaderboard = async (
           },
         },
       });
+
+    // Approved days per participant, in one query rather than per row.
+    const approved =
+      await prisma.dailySubmission.groupBy(
+        {
+          by: ["userId"],
+          where: {
+            challengeId,
+            approved: true,
+          },
+          _count: { _all: true },
+        }
+      );
+
+    const approvedByUser = new Map(
+      approved.map((a) => [
+        a.userId,
+        a._count._all,
+      ])
+    );
+
+    const leaderboard = participants.map(
+      (p) => ({
+        ...p,
+        approvedDays:
+          approvedByUser.get(p.userId) ??
+          0,
+      })
+    );
+
+    // Rank on what the challenge actually asks for: showing up.
+    // Ordering by stake alone rewarded whoever had been penalised
+    // least, which is not the same as performing best.
+    leaderboard.sort((a, b) => {
+      if (a.eliminated !== b.eliminated)
+        return a.eliminated ? 1 : -1;
+
+      if (
+        a.approvedDays !== b.approvedDays
+      )
+        return (
+          b.approvedDays - a.approvedDays
+        );
+
+      if (a.misses !== b.misses)
+        return a.misses - b.misses;
+
+      return (
+        b.currentStake - a.currentStake
+      );
+    });
 
     return res.status(200).json({
       leaderboard,
