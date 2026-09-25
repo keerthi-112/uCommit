@@ -8,11 +8,46 @@ export const register = async (
   res: Response
 ) => {
   try {
-    const {
-      name,
-      email,
-      password,
-    } = req.body;
+    const { name, password } = req.body;
+
+    // Stored lowercase so the same address cannot become two accounts.
+    const email =
+      typeof req.body.email === "string"
+        ? req.body.email
+            .trim()
+            .toLowerCase()
+        : "";
+
+    if (
+      typeof name !== "string" ||
+      name.trim().length < 2
+    ) {
+      return res.status(400).json({
+        message: "Please enter your name",
+      });
+    }
+
+    if (
+      !email ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Please enter a valid email address",
+      });
+    }
+
+    if (
+      typeof password !== "string" ||
+      password.length < 8
+    ) {
+      return res.status(400).json({
+        message:
+          "Password must be at least 8 characters",
+      });
+    }
 
     const existingUser =
       await prisma.user.findUnique({
@@ -34,7 +69,7 @@ export const register = async (
     const user =
       await prisma.user.create({
         data: {
-          name,
+          name: name.trim(),
           email,
           passwordHash,
 
@@ -71,10 +106,22 @@ export const register = async (
   res: Response
 ) => {
   try {
-    const {
-      email,
-      password,
-    } = req.body;
+    const { password } = req.body;
+
+    // Matches how register stores it, so casing never blocks a sign in.
+    const email =
+      typeof req.body.email === "string"
+        ? req.body.email
+            .trim()
+            .toLowerCase()
+        : "";
+
+    if (!email || !password) {
+      return res.status(400).json({
+        message:
+          "Email and password are required",
+      });
+    }
 
     const user =
       await prisma.user.findUnique({
