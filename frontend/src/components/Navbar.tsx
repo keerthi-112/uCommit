@@ -9,6 +9,7 @@ import api from "../services/api";
 interface CurrentUser {
   name: string;
   email: string;
+  role: string;
   wallet: {
     balance: number;
   } | null;
@@ -65,6 +66,16 @@ export default function Navbar() {
       label: "Community",
       path: "/leaderboard",
     },
+
+    // Admins get the review queue. The backend enforces this too.
+    ...(user?.role === "ADMIN"
+      ? [
+          {
+            label: "Review",
+            path: "/admin/review",
+          },
+        ]
+      : []),
   ];
 
   return (

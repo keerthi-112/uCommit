@@ -7,8 +7,10 @@ import ChallengesPage from "./pages/ChallengesPage";
 import MyChallengesPage from "./pages/MyChallengesPage";
 import WalletPage from "./pages/WalletPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
+import AdminReviewPage from "./pages/AdminReviewPage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 
 function App() {
   return (
@@ -67,6 +69,18 @@ function App() {
           element={
             <ProtectedRoute>
               <LeaderboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin only */}
+        <Route
+          path="/admin/review"
+          element={
+            <ProtectedRoute>
+              <AdminRoute>
+                <AdminReviewPage />
+              </AdminRoute>
             </ProtectedRoute>
           }
         />
