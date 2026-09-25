@@ -299,6 +299,56 @@ test("the current streak counts consecutive approved days up to today", async ()
   );
 });
 
+test("a streak ending yesterday still counts as current", async () => {
+  // Regression: day keys were built with toISOString(), which converts
+  // to UTC. East of Greenwich that moved local midnight onto the
+  // previous date, so a streak not including today read as zero.
+  const { user } = await withHistory([
+    3, 2, 1,
+  ]);
+
+  const res = await api(
+    "GET",
+    "/dashboard",
+    null,
+    user.token
+  );
+
+  assert.equal(
+    res.body.stats.currentStreak,
+    3,
+    "today is not over, so a run ending yesterday is still live"
+  );
+
+  assert.equal(
+    res.body.activity.length,
+    3
+  );
+
+  // The activity keys must be the local dates, not shifted ones.
+  const expected = new Date();
+  expected.setDate(
+    expected.getDate() - 1
+  );
+
+  const key = `${expected.getFullYear()}-${String(
+    expected.getMonth() + 1
+  ).padStart(2, "0")}-${String(
+    expected.getDate()
+  ).padStart(2, "0")}`;
+
+  assert.ok(
+    res.body.activity.some(
+      (a: any) => a.date === key
+    ),
+    `expected an entry for ${key}, got ${JSON.stringify(
+      res.body.activity.map(
+        (a: any) => a.date
+      )
+    )}`
+  );
+});
+
 test("a broken streak is not counted as current", async () => {
   // Active 6 and 5 days ago, then nothing since.
   const { user } = await withHistory([

@@ -9,6 +9,7 @@ import rewardRoutes from "./routes/reward.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import fraudRoutes from "./routes/fraud.routes";
 import dayCloseRoutes from "./routes/dayClose.routes";
+import coachRoutes from "./routes/coach.routes";
 
 const app = express();
 
@@ -39,5 +40,7 @@ app.use("/dashboard", dashboardRoutes);
 app.use("/fraud", fraudRoutes);
 
 app.use("/admin", dayCloseRoutes);
+
+app.use("/ai", coachRoutes);
 
 export default app;

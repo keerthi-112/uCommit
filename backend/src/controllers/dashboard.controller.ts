@@ -14,10 +14,25 @@ function startOfDay(d: Date): Date {
   return copy;
 }
 
+/**
+ * A day key in LOCAL time.
+ *
+ * Deliberately not toISOString().slice(0, 10): that converts to UTC, so
+ * east of Greenwich local midnight lands on the previous UTC date and
+ * every key shifts back a day, breaking comparisons against today.
+ */
 function toKey(d: Date): string {
-  return startOfDay(d)
-    .toISOString()
-    .slice(0, 10);
+  const day = startOfDay(d);
+
+  const month = String(
+    day.getMonth() + 1
+  ).padStart(2, "0");
+
+  const date = String(
+    day.getDate()
+  ).padStart(2, "0");
+
+  return `${day.getFullYear()}-${month}-${date}`;
 }
 
 /**
