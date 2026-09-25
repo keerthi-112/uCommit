@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 
 import Layout from "../components/Layout";
+import CoachPanel from "../components/CoachPanel";
 import api from "../services/api";
 
 interface Stats {
@@ -221,6 +222,8 @@ export default function DashboardPage() {
           watching.
         </p>
       </motion.div>
+
+      <CoachPanel />
 
       {/* CONSISTENCY CALENDAR */}
       <motion.div
