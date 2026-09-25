@@ -8,6 +8,7 @@ import walletRoutes from "./routes/wallet.routes";
 import rewardRoutes from "./routes/reward.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import fraudRoutes from "./routes/fraud.routes";
+import dayCloseRoutes from "./routes/dayClose.routes";
 
 const app = express();
 
@@ -36,5 +37,7 @@ app.use("/rewards", rewardRoutes);
 app.use("/dashboard", dashboardRoutes);
 
 app.use("/fraud", fraudRoutes);
+
+app.use("/admin", dayCloseRoutes);
 
 export default app;

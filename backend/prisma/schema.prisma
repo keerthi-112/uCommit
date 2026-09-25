@@ -82,7 +82,32 @@ model ChallengeParticipant {
   user         User @relation(fields: [userId], references: [id])
   challenge    Challenge @relation(fields: [challengeId], references: [id])
 
+  missedDays   MissedDay[]
+
   @@unique([userId, challengeId])
+}
+
+/// One record per day a participant failed to submit any proof.
+/// The unique constraint on (participantId, date) is what makes the
+/// close-out job safe to run more than once: a day can only ever be
+/// penalised a single time, enforced by the database rather than by
+/// application logic.
+model MissedDay {
+  id            String   @id @default(uuid())
+
+  participantId String
+
+  /// Midnight of the missed day, in server local time.
+  date          DateTime
+
+  /// Stake actually deducted, kept for audit.
+  penaltyAmount Float
+
+  createdAt     DateTime @default(now())
+
+  participant   ChallengeParticipant @relation(fields: [participantId], references: [id])
+
+  @@unique([participantId, date])
 }
 
 model DailySubmission {

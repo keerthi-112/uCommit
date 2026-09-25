@@ -201,6 +201,25 @@ async function cleanup() {
     { where: scope }
   );
 
+  // MissedDay points at the participant, so it has to go first.
+  const participants =
+    await prisma.challengeParticipant.findMany(
+      {
+        where: scope,
+        select: { id: true },
+      }
+    );
+
+  await prisma.missedDay.deleteMany({
+    where: {
+      participantId: {
+        in: participants.map(
+          (p: { id: string }) => p.id
+        ),
+      },
+    },
+  });
+
   await prisma.challengeParticipant.deleteMany(
     { where: scope }
   );
