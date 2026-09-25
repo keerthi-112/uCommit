@@ -324,64 +324,76 @@ export default function LoginPage() {
           >
             <h3
               style={{
-                marginBottom: "20px",
+                marginBottom: "22px",
                 fontSize: "22px",
               }}
             >
-              Community Snapshot
+              How it works
             </h3>
 
+            {/* Deliberately not statistics: community numbers cannot be
+                read before signing in, and inventing them would be a lie
+                on the first screen anyone sees. */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "1fr 1fr",
+                display: "flex",
+                flexDirection: "column",
                 gap: "18px",
               }}
             >
-              <div>
-                <h2>4,500+</h2>
-                <p
+              {[
+                {
+                  step: "1",
+                  text: "Pick a challenge and commit a stake from your wallet.",
+                },
+                {
+                  step: "2",
+                  text: "Submit proof every day that you did the thing.",
+                },
+                {
+                  step: "3",
+                  text: "Miss a day and part of your stake goes to everyone who didn't.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.step}
                   style={{
-                    color: "#94A3B8",
+                    display: "flex",
+                    gap: "14px",
+                    alignItems:
+                      "flex-start",
                   }}
                 >
-                  Commitments
-                </p>
-              </div>
+                  <span
+                    style={{
+                      minWidth: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background:
+                        "rgba(34,197,94,0.15)",
+                      color: "#4ADE80",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent:
+                        "center",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                    }}
+                  >
+                    {item.step}
+                  </span>
 
-              <div>
-                <h2>1,200+</h2>
-                <p
-                  style={{
-                    color: "#94A3B8",
-                  }}
-                >
-                  Members
-                </p>
-              </div>
-
-              <div>
-                <h2>87%</h2>
-                <p
-                  style={{
-                    color: "#94A3B8",
-                  }}
-                >
-                  Avg Consistency
-                </p>
-              </div>
-
-              <div>
-                <h2>42</h2>
-                <p
-                  style={{
-                    color: "#94A3B8",
-                  }}
-                >
-                  Active Challenges
-                </p>
-              </div>
+                  <p
+                    style={{
+                      color: "#94A3B8",
+                      lineHeight: 1.6,
+                      margin: 0,
+                    }}
+                  >
+                    {item.text}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
