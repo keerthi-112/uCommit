@@ -1,10 +1,48 @@
+import { useEffect, useState } from "react";
 import {
   Link,
   useLocation,
 } from "react-router-dom";
 
+import api from "../services/api";
+
+interface CurrentUser {
+  name: string;
+  email: string;
+  wallet: {
+    balance: number;
+  } | null;
+}
+
 export default function Navbar() {
   const location = useLocation();
+
+  const [user, setUser] =
+    useState<CurrentUser | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get("/auth/me")
+      .then((res) => {
+        if (!cancelled) {
+          setUser(res.data.user);
+        }
+      })
+      .catch(() => {
+        // The navbar is decorative here - if this fails the page
+        // itself will surface the error, so stay silent.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const initial = user?.name
+    ? user.name.charAt(0).toUpperCase()
+    : "·";
 
   const navItems = [
     {
@@ -180,7 +218,15 @@ export default function Navbar() {
               fontWeight: 600,
             }}
           >
-            18 day streak
+            {user?.wallet
+              ? "Balance: ₹" +
+                user.wallet.balance.toLocaleString(
+                  "en-IN",
+                  {
+                    maximumFractionDigits: 2,
+                  }
+                )
+              : "Balance: —"}
           </div>
 
           <div
@@ -226,7 +272,7 @@ export default function Navbar() {
                 fontWeight: 800,
               }}
             >
-              K
+              {initial}
             </div>
 
             <div>
@@ -240,7 +286,7 @@ export default function Navbar() {
                     "14px",
                 }}
               >
-                Keerthi
+                {user?.name ?? "Loading…"}
               </div>
 
               <div
@@ -251,7 +297,7 @@ export default function Navbar() {
                     "12px",
                 }}
               >
-                Building consistency
+                {user?.email ?? ""}
               </div>
             </div>
           </div>
