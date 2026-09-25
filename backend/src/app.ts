@@ -7,6 +7,7 @@ import submissionRoutes from "./routes/submission.routes";
 import walletRoutes from "./routes/wallet.routes";
 import rewardRoutes from "./routes/reward.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
+import fraudRoutes from "./routes/fraud.routes";
 
 const app = express();
 
@@ -33,5 +34,7 @@ app.use("/wallet", walletRoutes);
 app.use("/rewards", rewardRoutes);
 
 app.use("/dashboard", dashboardRoutes);
+
+app.use("/fraud", fraudRoutes);
 
 export default app;
