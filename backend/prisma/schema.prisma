@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(uuid())
+  name             String
+  email            String   @unique
+  passwordHash     String
+
+  role String @default("USER")
+
+  /// IANA zone, e.g. "Asia/Kolkata". Decides where this user's day
+  /// starts and ends: whether a proof counts as today, and which days
+  /// the close-out job treats as missed. Detected from the browser at
+  /// sign up; UTC until we know better.
+  timezone String @default("UTC")
+
+  trustScore       Int      @default(50)
+  consistencyScore Int      @default(50)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  wallet           Wallet?
+
+  participations   ChallengeParticipant[]
+  submissions      DailySubmission[]
+  transactions     WalletTransaction[]
+}
+
+model Wallet {
+  id           String @id @default(uuid())
+  userId       String @unique
+
+  balance      Float @default(0)
+  totalDeposit Float @default(0)
+  totalRewards Float @default(0)
+
+  user         User @relation(fields: [userId], references: [id])
+}
+
+model Challenge {
+  id                String   @id @default(uuid())
+
+  title             String
+  description       String?
+
+  entryFee          Float
+
+  penaltyPercentage Float @default(10)
+
+  maxMisses         Int @default(2)
+
+  rewardPool        Float @default(0)
+  completed Boolean @default(false)
+
+  startDate         DateTime
+  endDate           DateTime
+
+  isActive          Boolean @default(true)
+
+  createdAt         DateTime @default(now())
+
+  participants      ChallengeParticipant[]
+  submissions       DailySubmission[]
+}
+
+model ChallengeParticipant {
+  id           String   @id @default(uuid())
+
+  userId       String
+  challengeId  String
+
+  misses       Int      @default(0)
+
+  currentStake Float
+
+  eliminated   Boolean  @default(false)
+
+  joinedAt     DateTime @default(now())
+
+  user         User @relation(fields: [userId], references: [id])
+  challenge    Challenge @relation(fields: [challengeId], references: [id])
+
+  missedDays   MissedDay[]
+
+  @@unique([userId, challengeId])
+}
+
+/// One record per day a participant failed to submit any proof.
+/// The unique constraint on (participantId, date) is what makes the
+/// close-out job safe to run more than once: a day can only ever be
+/// penalised a single time, enforced by the database rather than by
+/// application logic.
+model MissedDay {
+  id            String   @id @default(uuid())
+
+  participantId String
+
+  /// Midnight of the missed day, in server local time.
+  date          DateTime
+
+  /// Stake actually deducted, kept for audit.
+  penaltyAmount Float
+
+  createdAt     DateTime @default(now())
+
+  participant   ChallengeParticipant @relation(fields: [participantId], references: [id])
+
+  @@unique([participantId, date])
+}
+
+model DailySubmission {
+  id           String   @id @default(uuid())
+
+  userId       String
+  challengeId  String
+
+  proofUrl     String?
+
+  submittedAt  DateTime @default(now())
+
+  approved     Boolean?
+
+  user         User @relation(fields: [userId], references: [id])
+  challenge    Challenge @relation(fields: [challengeId], references: [id])
+}
+
+model WalletTransaction {
+  id           String   @id @default(uuid())
+
+  userId       String
+
+  amount       Float
+
+  type         String
+
+  description  String?
+
+  createdAt    DateTime @default(now())
+
+  user         User @relation(fields: [userId], references: [id])
+}
+
+model PlatformWallet {
+  id           String   @id @default(uuid())
+
+  balance      Float    @default(0)
+
+  totalRevenue Float    @default(0)
+
+  createdAt    DateTime @default(now())
+}
+
+model ChallengePayout {
+  id            String   @id @default(uuid())
+
+  challengeId   String
+  userId        String
+
+  stakeRefund   Float
+  rewardAmount  Float
+  amount        Float
+
+  tier          String
+
+  createdAt     DateTime @default(now())
+}
