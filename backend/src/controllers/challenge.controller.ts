@@ -90,6 +90,44 @@ export const getChallenges = async (
   }
 };
 
+/** A single challenge, for its detail page. */
+export const getChallengeById = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const challenge =
+      await prisma.challenge.findUnique({
+        where: {
+          id: req.params.id as string,
+        },
+        include: {
+          _count: {
+            select: {
+              participants: true,
+            },
+          },
+        },
+      });
+
+    if (!challenge) {
+      return res.status(404).json({
+        message: "Challenge not found",
+      });
+    }
+
+    return res.status(200).json({
+      challenge,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
 export const joinChallenge = async (
   req: AuthRequest,
   res: Response

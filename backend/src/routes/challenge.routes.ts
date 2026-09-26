@@ -8,6 +8,7 @@ import {
   getLeaderboard,
   getChallengeStats,
   getCommunityStats,
+  getChallengeById,
 } from "../controllers/challenge.controller";
 
 import { authMiddleware } from "../middleware/auth.middleware";
@@ -30,6 +31,12 @@ router.get(
   "/community",
   authMiddleware,
   getCommunityStats
+);
+
+router.get(
+  "/:id",
+  authMiddleware,
+  getChallengeById
 );
 
 router.get(
