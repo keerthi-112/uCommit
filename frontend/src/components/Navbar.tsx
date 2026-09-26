@@ -7,6 +7,7 @@ import {
 
 import api from "../services/api";
 import { browserTimezone } from "../services/auth";
+import Logo from "./Logo";
 import {
   colour,
   space,
@@ -119,19 +120,16 @@ export default function Navbar() {
           gap: space.xl,
         }}
       >
-        {/* Wordmark. One weight, one colour - it is a product, not a poster. */}
+        {/* Mark plus wordmark. One weight, one colour. */}
         <Link
           to="/dashboard"
           style={{
-            fontSize: font.heading,
-            fontWeight: weight.semibold,
-            letterSpacing: "-0.02em",
-            color: colour.text,
             textDecoration: "none",
             whiteSpace: "nowrap",
+            display: "inline-flex",
           }}
         >
-          uCommit
+          <Logo size={20} markSize={20} />
         </Link>
 
         <div

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import Logo from "./Logo";
+
 import {
   colour,
   space,
@@ -28,17 +30,13 @@ export default function AuthShell({
   return (
     <div className="auth-shell">
       <div className="auth-pitch">
-        <p
+        <div
           style={{
-            fontSize: font.heading,
-            fontWeight: weight.semibold,
-            letterSpacing: "-0.02em",
-            color: colour.text,
-            margin: `0 0 ${space["3xl"]}`,
+            marginBottom: space["3xl"],
           }}
         >
-          uCommit
-        </p>
+          <Logo size={22} markSize={22} />
+        </div>
 
         <h1
           style={{
