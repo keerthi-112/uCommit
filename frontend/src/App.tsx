@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import ChallengesPage from "./pages/ChallengesPage";
+import ChallengeDetailPage from "./pages/ChallengeDetailPage";
 import MyChallengesPage from "./pages/MyChallengesPage";
 import WalletPage from "./pages/WalletPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
@@ -42,6 +43,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ChallengesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/challenges/:id"
+          element={
+            <ProtectedRoute>
+              <ChallengeDetailPage />
             </ProtectedRoute>
           }
         />

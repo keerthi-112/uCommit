@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import Layout from "../components/Layout";
 import api from "../services/api";
@@ -56,6 +57,8 @@ const durationInDays = (
 };
 
 export default function ChallengesPage() {
+  const navigate = useNavigate();
+
   const [challenges, setChallenges] =
     useState<Challenge[]>([]);
 
@@ -79,6 +82,9 @@ export default function ChallengesPage() {
 
   const [successMessage, setSuccessMessage] =
     useState("");
+
+  const [hoveredId, setHoveredId] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const loadPage = async () => {
@@ -325,11 +331,54 @@ export default function ChallengesPage() {
                 "Insufficient balance";
 
             return (
-              <Card
+              <div
                 key={challenge.id}
+                role="link"
+                tabIndex={0}
+                onClick={() =>
+                  navigate(
+                    `/challenges/${challenge.id}`
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" ||
+                    e.key === " "
+                  ) {
+                    e.preventDefault();
+                    navigate(
+                      `/challenges/${challenge.id}`
+                    );
+                  }
+                }}
+                onMouseEnter={() =>
+                  setHoveredId(
+                    challenge.id
+                  )
+                }
+                onMouseLeave={() =>
+                  setHoveredId(null)
+                }
+                style={{
+                  // The whole card opens the challenge, so it has to
+                  // say so before the click.
+                  cursor: "pointer",
+                  borderRadius: "16px",
+                  outline: "none",
+                }}
+              >
+              <Card
                 style={{
                   display: "flex",
                   flexDirection: "column",
+                  height: "100%",
+                  borderColor:
+                    hoveredId ===
+                    challenge.id
+                      ? colour.borderStrong
+                      : undefined,
+                  transition:
+                    "border-color 120ms ease",
                 }}
               >
                 <div
@@ -483,6 +532,7 @@ export default function ChallengesPage() {
                   onClick={() =>
                     handleJoin(challenge)
                   }
+                  stopPropagation
                   disabled={disabled}
                   fullWidth
                   variant={
@@ -494,6 +544,7 @@ export default function ChallengesPage() {
                   {buttonLabel}
                 </Button>
               </Card>
+              </div>
             );
           })}
         </div>

@@ -63,6 +63,7 @@ export function Button({
   variant = "primary",
   disabled = false,
   fullWidth = false,
+  stopPropagation = false,
   style,
 }: {
   children: React.ReactNode;
@@ -71,6 +72,8 @@ export function Button({
   variant?: ButtonVariant;
   disabled?: boolean;
   fullWidth?: boolean;
+  /** For a button inside a clickable card: act, but do not also open it. */
+  stopPropagation?: boolean;
   style?: React.CSSProperties;
 }) {
   const base: React.CSSProperties = {
@@ -132,7 +135,12 @@ export function Button({
   return (
     <button
       type={type}
-      onClick={onClick}
+      onClick={(e) => {
+        if (stopPropagation)
+          e.stopPropagation();
+
+        onClick?.();
+      }}
       disabled={disabled}
       style={{
         ...base,
