@@ -2,6 +2,16 @@ import axios from "axios";
 
 import { API_URL } from "./api";
 
+/** The browser knows the user's zone; the server cannot guess it. */
+export const browserTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions()
+      .timeZone;
+  } catch {
+    return "UTC";
+  }
+};
+
 export const loginUser = async (
   email: string,
   password: string
@@ -28,6 +38,7 @@ export const registerUser = async (
       name,
       email,
       password,
+      timezone: browserTimezone(),
     }
   );
 

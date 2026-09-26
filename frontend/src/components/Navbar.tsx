@@ -6,6 +6,7 @@ import {
 } from "react-router-dom";
 
 import api from "../services/api";
+import { browserTimezone } from "../services/auth";
 import {
   colour,
   space,
@@ -19,6 +20,7 @@ interface CurrentUser {
   name: string;
   email: string;
   role: string;
+  timezone?: string;
   wallet: {
     balance: number;
   } | null;
@@ -37,8 +39,26 @@ export default function Navbar() {
     api
       .get("/auth/me")
       .then((res) => {
-        if (!cancelled)
-          setUser(res.data.user);
+        if (cancelled) return;
+
+        setUser(res.data.user);
+
+        // Keep the stored zone in step with where they actually are,
+        // so day boundaries follow the user rather than their signup.
+        const here = browserTimezone();
+
+        if (
+          here &&
+          res.data.user?.timezone !== here
+        ) {
+          api
+            .put("/auth/timezone", {
+              timezone: here,
+            })
+            .catch(() => {
+              // Not worth interrupting anyone over.
+            });
+        }
       })
       .catch(() => {
         // The page itself surfaces any real error.
