@@ -1,6 +1,10 @@
 import express from "express";
 import cors from "cors";
 
+import {
+  generalLimiter,
+} from "./middleware/rateLimit.middleware";
+
 import authRoutes from "./routes/auth.routes";
 import challengeRoutes from "./routes/challenge.routes";
 import submissionRoutes from "./routes/submission.routes";
@@ -18,6 +22,10 @@ const app = express();
 // blocks them.
 app.use(cors());
 app.use(express.json());
+
+// Backstop for every route. The auth endpoints add stricter limits of
+// their own in auth.routes.ts.
+app.use(generalLimiter);
 
 app.get("/", (req, res) => {
   res.send("uCommit Backend Running");
