@@ -1,52 +1,136 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: 'Inter', sans-serif;
-  background: #0B1120;
-}
+/* Global base. Component styling lives in theme.ts and components/ui. */
 
 :root {
-  --bg: #070B14;
-  --surface: #0F172A;
-  --card: #111827;
-  --card-hover: #182235;
+  --bg: #0A0E16;
+  --surface: #111722;
+  --border: #1F2836;
+  --text: #E8ECF4;
+  --text-muted: #8A93A6;
+  --accent: #22C55E;
 
-  --primary: #22C55E;
-  --primary-light: #4ADE80;
-
-  --secondary: #60A5FA;
-
-  --text: #F8FAFC;
-  --muted: #94A3B8;
-
-  --border: #1E293B;
-
-  --danger: #EF4444;
+  color-scheme: dark;
 }
 
 * {
-  margin: 0;
-  padding: 0;
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
+  margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, sans-serif;
+
+  font-family: ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  margin: 0;
 }
 
 a {
+  color: var(--accent);
   text-decoration: none;
-  color: inherit;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 button {
   font-family: inherit;
+}
+
+input::placeholder {
+  color: #4E5666;
+}
+
+input:focus {
+  border-color: var(--accent) !important;
+}
+
+/* Quiet scrollbars - the default light ones break the dark ground. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232D3C;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2E3A4C;
+}
+
+/* ---------------------------------------------------------------
+   Responsive.
+   The auth pages were a fixed two column grid with 160px padding,
+   which made them unusable below about 1100px.
+   --------------------------------------------------------------- */
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+}
+
+.auth-pitch {
+  padding: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-form-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+}
+
+@media (max-width: 1024px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-pitch {
+    display: none;
+  }
+}
+
+.app-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+
+@media (max-width: 720px) {
+  .app-main {
+    padding: 24px 16px 56px;
+  }
+
+  .nav-links {
+    overflow-x: auto;
+  }
+
+  .nav-identity-text {
+    display: none;
+  }
 }

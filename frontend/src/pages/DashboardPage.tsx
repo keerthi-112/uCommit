@@ -1,10 +1,27 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 
 import Layout from "../components/Layout";
 import CoachPanel from "../components/CoachPanel";
 import api from "../services/api";
+
+import {
+  Card,
+  StatTile,
+  TileGrid,
+  PageHeader,
+  Notice,
+  Muted,
+} from "../components/ui";
+
+import {
+  colour,
+  space,
+  font,
+  weight,
+  radius,
+  heat,
+} from "../theme";
 
 interface Stats {
   currentStreak: number;
@@ -30,18 +47,7 @@ interface DashboardData {
   challenges: any[];
 }
 
-const cardStyle = {
-  background: "rgba(8,15,35,0.72)",
-  border:
-    "1px solid rgba(255,255,255,0.06)",
-  borderRadius: "24px",
-  backdropFilter: "blur(20px)",
-  padding: "28px",
-  boxShadow:
-    "0 20px 40px rgba(0,0,0,0.25)",
-};
-
-const WEEKS = 15;
+const WEEKS = 18;
 const DAY_MS = 86400000;
 
 const toKey = (d: Date) =>
@@ -51,21 +57,20 @@ const toKey = (d: Date) =>
     d.getDate()
   ).padStart(2, "0")}`;
 
-/**
- * The most recent WEEKS weeks, oldest first, ending today.
- * Each cell carries the real approved-submission count for that day.
- */
+/** The most recent WEEKS weeks, oldest first, ending this week. */
 function buildCalendar(
   activity: ActivityDay[]
 ) {
   const counts = new Map(
-    activity.map((a) => [a.date, a.count])
+    activity.map((a) => [
+      a.date,
+      a.count,
+    ])
   );
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Walk back to the most recent Sunday so columns line up as weeks.
   const end = new Date(today);
   end.setDate(
     end.getDate() + (6 - end.getDay())
@@ -77,9 +82,11 @@ function buildCalendar(
     future: boolean;
   }[] = [];
 
-  const total = WEEKS * 7;
-
-  for (let i = total - 1; i >= 0; i--) {
+  for (
+    let i = WEEKS * 7 - 1;
+    i >= 0;
+    i--
+  ) {
     const d = new Date(
       end.getTime() - i * DAY_MS
     );
@@ -89,23 +96,21 @@ function buildCalendar(
     days.push({
       key,
       count: counts.get(key) ?? 0,
-      future: d.getTime() > today.getTime(),
+      future:
+        d.getTime() > today.getTime(),
     });
   }
 
   return days;
 }
 
-/** Shades of the accent, by how much was verified that day. */
+/** Four steps of one hue. Intensity means verified days, nothing else. */
 function cellColour(
   count: number,
   future: boolean
 ) {
   if (future) return "transparent";
-  if (count === 0) return "#0F172A";
-  if (count === 1) return "#166534";
-  if (count === 2) return "#22C55E";
-  return "#72F1B8";
+  return heat[Math.min(count, heat.length - 1)];
 }
 
 export default function DashboardPage() {
@@ -141,14 +146,9 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <Layout>
-        <p
-          style={{
-            color: "#94A3B8",
-            fontSize: "18px",
-          }}
-        >
+        <Muted>
           Loading your dashboard...
-        </p>
+        </Muted>
       </Layout>
     );
   }
@@ -156,112 +156,127 @@ export default function DashboardPage() {
   if (error || !data) {
     return (
       <Layout>
-        <div
-          style={{
-            padding: "20px 24px",
-            borderRadius: "16px",
-            background:
-              "rgba(239,68,68,0.1)",
-            border:
-              "1px solid rgba(239,68,68,0.3)",
-            color: "#FCA5A5",
-          }}
-        >
-          {error || "No data available."}
-        </div>
+        <Notice tone="danger">
+          {error ||
+            "No data available."}
+        </Notice>
       </Layout>
     );
   }
 
   const { stats, activity } = data;
 
-  const calendar = buildCalendar(
-    activity
-  );
+  const calendar =
+    buildCalendar(activity);
 
   const hasHistory =
     stats.totalSubmissions > 0;
 
   return (
     <Layout>
-      {/* HERO */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ marginBottom: "48px" }}
-      >
-        <h1
-          style={{
-            fontSize: "72px",
-            fontWeight: 800,
-            letterSpacing: "-3px",
-            lineHeight: 1,
-            maxWidth: "900px",
-            marginBottom: "20px",
-          }}
-        >
-          Build the future version of
-          yourself.
-        </h1>
-
-        <p
-          style={{
-            color: "#94A3B8",
-            fontSize: "20px",
-            lineHeight: 1.8,
-            maxWidth: "760px",
-          }}
-        >
-          Consistency is not measured in
-          motivation.
-          <br />
-          <br />
-          It is measured in the promises
-          you keep when nobody is
-          watching.
-        </p>
-      </motion.div>
+      <PageHeader
+        title="Overview"
+        description="Your commitments, and the record of keeping them."
+      />
 
       <CoachPanel />
 
-      {/* CONSISTENCY CALENDAR */}
-      <motion.div
-        whileHover={{ y: -2 }}
+      <TileGrid>
+        <StatTile
+          value={String(
+            stats.currentStreak
+          )}
+          label="Current streak"
+          hint={
+            stats.currentStreak === 1
+              ? "day"
+              : "days"
+          }
+          tone={
+            stats.currentStreak > 0
+              ? "accent"
+              : undefined
+          }
+        />
+
+        <StatTile
+          value={String(
+            stats.activeChallenges
+          )}
+          label="Active challenges"
+        />
+
+        <StatTile
+          value={
+            stats.consistency === null
+              ? "—"
+              : stats.consistency + "%"
+          }
+          label="Consistency"
+          hint={
+            stats.consistency === null
+              ? "no days expected yet"
+              : `${stats.approvedDays} of ${stats.expectedDays} days`
+          }
+        />
+
+        <StatTile
+          value={String(
+            stats.completedChallenges
+          )}
+          label="Completed"
+        />
+      </TileGrid>
+
+      {/* Activity ------------------------------------------------ */}
+      <Card
         style={{
-          ...cardStyle,
-          marginBottom: "32px",
+          marginTop: space.lg,
+          marginBottom: space.lg,
         }}
       >
-        <h3
+        <div
           style={{
-            fontSize: "24px",
-            marginBottom: "8px",
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems: "baseline",
+            gap: space.md,
+            flexWrap: "wrap",
+            marginBottom: space.lg,
           }}
         >
-          Consistency Calendar
-        </h3>
+          <h2
+            style={{
+              fontSize: font.heading,
+              fontWeight: weight.semibold,
+              margin: 0,
+            }}
+          >
+            Activity
+          </h2>
 
-        <p
-          style={{
-            color: "#64748B",
-            marginBottom: "28px",
-          }}
-        >
-          Every filled square is a day
-          with proof that was approved.
-        </p>
+          <span
+            style={{
+              fontSize: font.tiny,
+              color: colour.textFaint,
+            }}
+          >
+            Each square is a day with
+            approved proof
+          </span>
+        </div>
 
         <div
           style={{
             display: "grid",
             gridTemplateRows:
-              "repeat(7, 18px)",
+              "repeat(7, 12px)",
             gridAutoFlow: "column",
-            gridAutoColumns: "18px",
-            gap: "5px",
+            gridAutoColumns: "12px",
+            gap: "3px",
             overflowX: "auto",
-            paddingBottom: "6px",
+            paddingBottom: space.xs,
           }}
         >
           {calendar.map((day) => (
@@ -270,21 +285,16 @@ export default function DashboardPage() {
               title={
                 day.future
                   ? ""
-                  : `${day.key}: ${
-                      day.count
-                    } approved`
+                  : `${day.key}: ${day.count} approved`
               }
               style={{
-                width: "18px",
-                height: "18px",
-                borderRadius: "5px",
+                width: "12px",
+                height: "12px",
+                borderRadius: "3px",
                 background: cellColour(
                   day.count,
                   day.future
                 ),
-                border: day.future
-                  ? "none"
-                  : "1px solid rgba(255,255,255,0.04)",
               }}
             />
           ))}
@@ -293,172 +303,77 @@ export default function DashboardPage() {
         {!hasHistory && (
           <p
             style={{
-              color: "#64748B",
-              marginTop: "22px",
-              lineHeight: 1.7,
+              color: colour.textMuted,
+              fontSize: font.small,
+              marginTop: space.lg,
+              marginBottom: 0,
             }}
           >
             Nothing here yet.{" "}
-            <Link
-              to="/challenges"
-              style={{
-                color: "#4ADE80",
-                fontWeight: 600,
-              }}
-            >
+            <Link to="/challenges">
               Join a challenge
             </Link>{" "}
             and your first square appears
-            the day your proof is
-            approved.
+            when your proof is approved.
           </p>
         )}
-      </motion.div>
+      </Card>
 
-      {/* PERSONAL METRICS */}
-      <div
+      {/* Secondary ----------------------------------------------- */}
+      <TileGrid min="170px">
+        <StatTile
+          value={String(
+            stats.longestStreak
+          )}
+          label="Longest streak"
+        />
+
+        <StatTile
+          value={String(
+            stats.approvedDays
+          )}
+          label="Approved days"
+        />
+
+        <StatTile
+          value={String(
+            stats.pendingSubmissions
+          )}
+          label="Awaiting review"
+          tone={
+            stats.pendingSubmissions > 0
+              ? "warn"
+              : undefined
+          }
+        />
+
+        <StatTile
+          value={String(
+            stats.eliminatedChallenges
+          )}
+          label="Eliminated from"
+          tone={
+            stats.eliminatedChallenges >
+            0
+              ? "danger"
+              : undefined
+          }
+        />
+      </TileGrid>
+
+      <p
         style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit,minmax(220px,1fr))",
-          gap: "20px",
-          marginBottom: "32px",
+          color: colour.textFaint,
+          fontSize: font.tiny,
+          marginTop: space.xl,
+          paddingTop: space.lg,
+          borderTop: `1px solid ${colour.border}`,
+          borderRadius: radius.sm,
         }}
       >
-        {[
-          {
-            value: String(
-              stats.currentStreak
-            ),
-            label: "Current Streak",
-            hint:
-              stats.currentStreak === 1
-                ? "day"
-                : "days",
-          },
-          {
-            value: String(
-              stats.activeChallenges
-            ),
-            label: "Active Challenges",
-            hint: "",
-          },
-          {
-            value:
-              stats.consistency === null
-                ? "—"
-                : stats.consistency + "%",
-            label: "Consistency",
-            hint:
-              stats.consistency === null
-                ? "no days expected yet"
-                : `${stats.approvedDays} of ${stats.expectedDays} days`,
-          },
-          {
-            value: String(
-              stats.completedChallenges
-            ),
-            label:
-              "Completed Challenges",
-            hint: "",
-          },
-        ].map((item) => (
-          <div
-            key={item.label}
-            style={cardStyle}
-          >
-            <h2
-              style={{
-                fontSize: "44px",
-                marginBottom: "6px",
-              }}
-            >
-              {item.value}
-            </h2>
-
-            <p
-              style={{ color: "#64748B" }}
-            >
-              {item.label}
-            </p>
-
-            {item.hint && (
-              <p
-                style={{
-                  color: "#475569",
-                  fontSize: "13px",
-                  marginTop: "6px",
-                }}
-              >
-                {item.hint}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* SECONDARY */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit,minmax(220px,1fr))",
-          gap: "20px",
-        }}
-      >
-        {[
-          {
-            value: String(
-              stats.longestStreak
-            ),
-            label: "Longest Streak",
-          },
-          {
-            value: String(
-              stats.approvedDays
-            ),
-            label: "Approved Days",
-          },
-          {
-            value: String(
-              stats.pendingSubmissions
-            ),
-            label: "Awaiting Review",
-          },
-          {
-            value: String(
-              stats.eliminatedChallenges
-            ),
-            label: "Eliminated From",
-          },
-        ].map((item) => (
-          <div
-            key={item.label}
-            style={{
-              ...cardStyle,
-              padding: "22px",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "28px",
-                marginBottom: "4px",
-              }}
-            >
-              {item.value}
-            </h3>
-
-            <p
-              style={{
-                color: "#64748B",
-                fontSize: "14px",
-              }}
-            >
-              {item.label}
-            </p>
-          </div>
-        ))}
-      </div>
+        Every figure above is calculated
+        from your own submissions.
+      </p>
     </Layout>
   );
 }

@@ -1,8 +1,26 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 
 import Layout from "../components/Layout";
 import api from "../services/api";
+
+import {
+  Card,
+  Button,
+  Input,
+  StatTile,
+  TileGrid,
+  PageHeader,
+  Notice,
+  Muted,
+} from "../components/ui";
+
+import {
+  colour,
+  space,
+  font,
+  weight,
+  money,
+} from "../theme";
 
 interface Wallet {
   balance: number;
@@ -18,20 +36,6 @@ interface Transaction {
   createdAt: string;
 }
 
-const cardStyle = {
-  background: "#111827",
-  border: "1px solid #1F2937",
-  borderRadius: "20px",
-  padding: "24px",
-};
-
-const formatMoney = (value: number) =>
-  "₹" +
-  Math.abs(value).toLocaleString(
-    "en-IN",
-    { maximumFractionDigits: 2 }
-  );
-
 const formatWhen = (iso: string) =>
   new Date(iso).toLocaleString("en-IN", {
     day: "numeric",
@@ -41,16 +45,13 @@ const formatWhen = (iso: string) =>
     minute: "2-digit",
   });
 
-/** Human labels for the type codes stored in the ledger. */
-const TYPE_LABELS: Record<
-  string,
-  string
-> = {
-  DEPOSIT: "Added to wallet",
-  CHALLENGE_STAKE: "Challenge stake",
-  STAKE_REFUND: "Stake returned",
-  CHALLENGE_REWARD: "Challenge reward",
-};
+const TYPE_LABELS: Record<string, string> =
+  {
+    DEPOSIT: "Added to wallet",
+    CHALLENGE_STAKE: "Challenge stake",
+    STAKE_REFUND: "Stake returned",
+    CHALLENGE_REWARD: "Challenge reward",
+  };
 
 export default function WalletPage() {
   const [wallet, setWallet] =
@@ -106,17 +107,16 @@ export default function WalletPage() {
     load();
   }, []);
 
-  const handleDeposit = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault();
-
+  const handleDeposit = async () => {
     setDepositError("");
     setNotice("");
 
     const value = Number(amount);
 
-    if (!Number.isFinite(value) || value <= 0) {
+    if (
+      !Number.isFinite(value) ||
+      value <= 0
+    ) {
       setDepositError(
         "Enter an amount greater than zero."
       );
@@ -131,7 +131,7 @@ export default function WalletPage() {
       });
 
       setNotice(
-        `Added ${formatMoney(
+        `Added ${money(
           value
         )} to your wallet.`
       );
@@ -151,128 +151,72 @@ export default function WalletPage() {
 
   return (
     <Layout>
-      <div
-        style={{ marginBottom: "36px" }}
-      >
-        <h1
-          style={{
-            fontSize: "48px",
-            fontWeight: 800,
-            marginBottom: "12px",
-          }}
-        >
-          Wallet
-        </h1>
-
-        <p
-          style={{
-            color: "#9CA3AF",
-            fontSize: "18px",
-          }}
-        >
-          What you've committed, and what
-          it has cost or earned you.
-        </p>
-      </div>
+      <PageHeader
+        title="Wallet"
+        description="What you have committed, and what it has cost or earned you."
+      />
 
       {loading && (
-        <p style={{ color: "#94A3B8" }}>
+        <Muted>
           Loading your wallet...
-        </p>
+        </Muted>
       )}
 
       {!loading && error && (
-        <div
-          style={{
-            padding: "20px 24px",
-            borderRadius: "16px",
-            background:
-              "rgba(239,68,68,0.1)",
-            border:
-              "1px solid rgba(239,68,68,0.3)",
-            color: "#FCA5A5",
-          }}
-        >
+        <Notice tone="danger">
           {error}
-        </div>
+        </Notice>
       )}
 
       {!loading && !error && wallet && (
         <>
-          {/* Balances */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit,minmax(220px,1fr))",
-              gap: "20px",
-              marginBottom: "28px",
-            }}
-          >
-            {[
-              {
-                label:
-                  "Available Balance",
-                value: wallet.balance,
-                color: "#F8FAFC",
-              },
-              {
-                label: "Currently At Stake",
-                value: atStake,
-                color: "#FCD34D",
-              },
-              {
-                label: "Total Rewards",
-                value:
-                  wallet.totalRewards,
-                color: "#4ADE80",
-              },
-              {
-                label: "Total Added",
-                value:
-                  wallet.totalDeposit,
-                color: "#94A3B8",
-              },
-            ].map((item) => (
-              <motion.div
-                key={item.label}
-                whileHover={{ y: -4 }}
-                style={cardStyle}
-              >
-                <p
-                  style={{
-                    color: "#9CA3AF",
-                  }}
-                >
-                  {item.label}
-                </p>
+          <TileGrid>
+            <StatTile
+              value={money(
+                wallet.balance
+              )}
+              label="Available"
+            />
+            <StatTile
+              value={money(atStake)}
+              label="At stake"
+              tone={
+                atStake > 0
+                  ? "warn"
+                  : undefined
+              }
+            />
+            <StatTile
+              value={money(
+                wallet.totalRewards
+              )}
+              label="Rewards earned"
+              tone={
+                wallet.totalRewards > 0
+                  ? "accent"
+                  : undefined
+              }
+            />
+            <StatTile
+              value={money(
+                wallet.totalDeposit
+              )}
+              label="Total added"
+            />
+          </TileGrid>
 
-                <h2
-                  style={{
-                    marginTop: "10px",
-                    fontSize: "32px",
-                    color: item.color,
-                  }}
-                >
-                  {formatMoney(
-                    item.value
-                  )}
-                </h2>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Add money */}
-          <div
+          <Card
             style={{
-              ...cardStyle,
-              marginBottom: "32px",
+              marginTop: space.lg,
+              marginBottom: space.lg,
             }}
           >
             <h2
               style={{
-                fontSize: "22px",
-                marginBottom: "6px",
+                fontSize: font.heading,
+                fontWeight:
+                  weight.semibold,
+                margin: `0 0 ${space.xs}`,
               }}
             >
               Add money
@@ -280,80 +224,61 @@ export default function WalletPage() {
 
             <p
               style={{
-                color: "#64748B",
-                fontSize: "14px",
-                marginBottom: "18px",
+                color: colour.textFaint,
+                fontSize: font.tiny,
+                margin: `0 0 ${space.md}`,
               }}
             >
               Test balance only. uCommit
-              is not connected to any
+              is not connected to a
               payment provider.
             </p>
 
-            <form
-              onSubmit={handleDeposit}
+            <div
               style={{
                 display: "flex",
-                gap: "12px",
+                gap: space.sm,
                 flexWrap: "wrap",
               }}
             >
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={amount}
-                onChange={(e) =>
-                  setAmount(
-                    e.target.value
-                  )
-                }
-                placeholder="Amount"
+              <div
                 style={{
                   flex: 1,
-                  minWidth: "220px",
-                  padding: "14px 16px",
-                  borderRadius: "14px",
-                  background: "#0B1220",
-                  border:
-                    "1px solid #1F2937",
-                  color: "#F8FAFC",
-                  fontSize: "16px",
+                  minWidth: "200px",
                 }}
-              />
+              >
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={amount}
+                  onChange={setAmount}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter"
+                    )
+                      handleDeposit();
+                  }}
+                  placeholder="Amount"
+                />
+              </div>
 
-              <button
-                type="submit"
+              <Button
+                onClick={handleDeposit}
                 disabled={depositing}
-                style={{
-                  background: depositing
-                    ? "#1F2937"
-                    : "linear-gradient(135deg,#22C55E,#4ADE80)",
-                  color: depositing
-                    ? "#64748B"
-                    : "#081018",
-                  border: "none",
-                  padding: "14px 28px",
-                  borderRadius: "14px",
-                  fontWeight: 700,
-                  fontSize: "15px",
-                  cursor: depositing
-                    ? "not-allowed"
-                    : "pointer",
-                }}
               >
                 {depositing
                   ? "Adding..."
-                  : "Add Money"}
-              </button>
-            </form>
+                  : "Add"}
+              </Button>
+            </div>
 
             {depositError && (
               <p
                 style={{
-                  color: "#FCA5A5",
-                  marginTop: "12px",
-                  fontSize: "14px",
+                  color: colour.danger,
+                  fontSize: font.small,
+                  margin: `${space.sm} 0 0`,
                 }}
               >
                 {depositError}
@@ -363,112 +288,114 @@ export default function WalletPage() {
             {notice && (
               <p
                 style={{
-                  color: "#4ADE80",
-                  marginTop: "12px",
-                  fontSize: "14px",
+                  color:
+                    colour.accentText,
+                  fontSize: font.small,
+                  margin: `${space.sm} 0 0`,
                 }}
               >
                 {notice}
               </p>
             )}
-          </div>
+          </Card>
 
-          {/* Ledger */}
-          <div style={cardStyle}>
+          <Card>
             <h2
               style={{
-                marginBottom: "20px",
-                fontSize: "22px",
+                fontSize: font.heading,
+                fontWeight:
+                  weight.semibold,
+                margin: `0 0 ${space.lg}`,
               }}
             >
-              Transaction History
+              Transactions
             </h2>
 
             {transactions.length === 0 ? (
-              <p
-                style={{
-                  color: "#9CA3AF",
-                }}
-              >
-                Nothing here yet. Add
-                money and join a
-                challenge to get started.
-              </p>
+              <Muted>
+                Nothing yet. Add money
+                and join a challenge to
+                get started.
+              </Muted>
             ) : (
               transactions.map(
-                (transaction, index) => (
+                (t, index) => (
                   <div
-                    key={transaction.id}
+                    key={t.id}
                     style={{
                       display: "flex",
                       justifyContent:
                         "space-between",
                       alignItems:
                         "center",
-                      gap: "16px",
-                      padding: "16px 0",
+                      gap: space.lg,
+                      padding: `${space.md} 0`,
                       borderBottom:
                         index !==
                         transactions.length -
                           1
-                          ? "1px solid #1F2937"
+                          ? `1px solid ${colour.border}`
                           : "none",
                     }}
                   >
                     <div>
-                      <h4
+                      <p
                         style={{
                           margin: 0,
-                          fontSize: "16px",
+                          fontSize:
+                            font.body,
                         }}
                       >
-                        {transaction.description ||
+                        {t.description ||
                           TYPE_LABELS[
-                            transaction
-                              .type
+                            t.type
                           ] ||
-                          transaction.type}
-                      </h4>
+                          t.type}
+                      </p>
 
                       <p
                         style={{
-                          color: "#64748B",
-                          fontSize: "13px",
-                          marginTop: "4px",
+                          color:
+                            colour.textFaint,
+                          fontSize:
+                            font.tiny,
+                          margin: `2px 0 0`,
                         }}
                       >
                         {formatWhen(
-                          transaction.createdAt
+                          t.createdAt
                         )}
                       </p>
                     </div>
 
-                    <div
+                    <span
                       style={{
                         color:
-                          transaction.amount >=
-                          0
-                            ? "#22C55E"
-                            : "#EF4444",
-                        fontWeight: 700,
-                        fontSize: "17px",
+                          t.amount >= 0
+                            ? colour.accentText
+                            : colour.danger,
+                        fontWeight:
+                          weight.medium,
+                        fontSize:
+                          font.body,
                         whiteSpace:
                           "nowrap",
                       }}
                     >
-                      {transaction.amount >=
-                      0
+                      {t.amount >= 0
                         ? "+"
                         : "−"}
-                      {formatMoney(
-                        transaction.amount
+                      {money(
+                        Math.abs(
+                          t.amount
+                        )
                       )}
-                    </div>
+                    </span>
                   </div>
                 )
               )
             )}
-          </div>
+          </Card>
         </>
       )}
     </Layout>

@@ -1,8 +1,24 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 
 import Layout from "../components/Layout";
 import api from "../services/api";
+
+import {
+  Card,
+  Button,
+  Badge,
+  PageHeader,
+  Notice,
+  Muted,
+} from "../components/ui";
+import type { Tone } from "../components/ui";
+
+import {
+  colour,
+  space,
+  font,
+  weight,
+} from "../theme";
 
 interface PendingSubmission {
   id: string;
@@ -38,36 +54,13 @@ interface Assessment {
   anomalyScore: number | null;
   features: {
     submissionCount: number;
-    duplicateRatio: number;
-    rejectionRate: number;
   };
 }
 
-const cardStyle = {
-  background: "#111827",
-  border: "1px solid #1E293B",
-  borderRadius: "22px",
-  padding: "24px",
-  boxShadow:
-    "0 10px 30px rgba(0,0,0,0.25)",
-};
-
-const BAND_STYLES: Record<
-  string,
-  { color: string; bg: string }
-> = {
-  HIGH: {
-    color: "#FCA5A5",
-    bg: "rgba(239,68,68,0.15)",
-  },
-  MEDIUM: {
-    color: "#FCD34D",
-    bg: "rgba(245,158,11,0.15)",
-  },
-  LOW: {
-    color: "#94A3B8",
-    bg: "rgba(148,163,184,0.12)",
-  },
+const BAND_TONE: Record<string, Tone> = {
+  HIGH: "danger",
+  MEDIUM: "warn",
+  LOW: "neutral",
 };
 
 const formatWhen = (iso: string) =>
@@ -152,7 +145,6 @@ export default function AdminReviewPage() {
     load();
   }, []);
 
-  /** Risk information for the person who submitted this proof. */
   const riskFor = (
     submission: PendingSubmission
   ) =>
@@ -168,13 +160,11 @@ export default function AdminReviewPage() {
     decision: "approve" | "reject"
   ) => {
     if (decision === "reject") {
-      const ok = window.confirm(
-        `Reject this proof?\n\n` +
-          `${submission.user.name} loses ${submission.challenge.penaltyPercentage}% of their remaining stake and this counts as a miss ` +
-          `(elimination after ${submission.challenge.maxMisses}).\n\nThis cannot be undone.`
+      const confirmed = window.confirm(
+        `Reject this proof?\n\n${submission.user.name} loses ${submission.challenge.penaltyPercentage}% of their remaining stake and this counts as a miss (elimination after ${submission.challenge.maxMisses}).\n\nThis cannot be undone.`
       );
 
-      if (!ok) return;
+      if (!confirmed) return;
     }
 
     setActingId(submission.id);
@@ -209,133 +199,85 @@ export default function AdminReviewPage() {
 
   return (
     <Layout>
-      <div
-        style={{ marginBottom: "36px" }}
-      >
-        <h1
-          style={{
-            fontSize: "52px",
-            fontWeight: 800,
-            marginBottom: "14px",
-          }}
-        >
-          Review
-        </h1>
-
-        <p
-          style={{
-            color: "#94A3B8",
-            fontSize: "19px",
-            maxWidth: "820px",
-            lineHeight: 1.7,
-          }}
-        >
-          Proof waiting on a decision, and
-          participation worth a second
-          look.
-        </p>
-      </div>
+      <PageHeader
+        title="Review"
+        description="Proof waiting on a decision, and participation worth a second look."
+      />
 
       {loading && (
-        <p
-          style={{
-            color: "#94A3B8",
-            fontSize: "18px",
-          }}
-        >
+        <Muted>
           Loading review queue...
-        </p>
+        </Muted>
       )}
 
       {!loading && error && (
-        <div
-          style={{
-            padding: "20px 24px",
-            borderRadius: "16px",
-            background:
-              "rgba(239,68,68,0.1)",
-            border:
-              "1px solid rgba(239,68,68,0.3)",
-            color: "#FCA5A5",
-          }}
-        >
+        <Notice tone="danger">
           {error}
-        </div>
+        </Notice>
       )}
 
       {!loading && !error && (
         <>
           {notice && (
-            <div
-              style={{
-                marginBottom: "20px",
-                padding: "16px 20px",
-                borderRadius: "16px",
-                background:
-                  "rgba(34,197,94,0.12)",
-                border:
-                  "1px solid rgba(34,197,94,0.3)",
-                color: "#4ADE80",
-              }}
-            >
+            <Notice tone="accent">
               {notice}
-            </div>
+            </Notice>
           )}
 
           {actionError && (
-            <div
-              style={{
-                marginBottom: "20px",
-                padding: "16px 20px",
-                borderRadius: "16px",
-                background:
-                  "rgba(239,68,68,0.1)",
-                border:
-                  "1px solid rgba(239,68,68,0.3)",
-                color: "#FCA5A5",
-              }}
-            >
+            <Notice tone="danger">
               {actionError}
-            </div>
+            </Notice>
           )}
 
-          {/* ---------------- Pending proof ---------------- */}
-          <h2
+          <div
             style={{
-              fontSize: "28px",
-              marginBottom: "18px",
+              display: "flex",
+              alignItems: "baseline",
+              gap: space.sm,
+              marginBottom: space.md,
             }}
           >
-            Awaiting decision
+            <h2
+              style={{
+                fontSize: font.title,
+                fontWeight:
+                  weight.semibold,
+                margin: 0,
+              }}
+            >
+              Awaiting decision
+            </h2>
+
             <span
               style={{
-                color: "#64748B",
-                fontSize: "18px",
-                fontWeight: 400,
-                marginLeft: "10px",
+                color: colour.textFaint,
+                fontSize: font.small,
               }}
             >
               {pending.length}
             </span>
-          </h2>
+          </div>
 
           {pending.length === 0 ? (
-            <div
+            <Card
               style={{
-                ...cardStyle,
-                marginBottom: "48px",
-                color: "#94A3B8",
+                marginBottom:
+                  space["2xl"],
               }}
             >
-              Nothing is waiting for
-              review right now.
-            </div>
+              <Muted>
+                Nothing is waiting for
+                review.
+              </Muted>
+            </Card>
           ) : (
             <div
               style={{
                 display: "grid",
-                gap: "16px",
-                marginBottom: "48px",
+                gap: space.md,
+                marginBottom:
+                  space["2xl"],
               }}
             >
               {pending.map(
@@ -348,12 +290,8 @@ export default function AdminReviewPage() {
                     submission.id;
 
                   return (
-                    <motion.div
+                    <Card
                       key={submission.id}
-                      whileHover={{
-                        y: -3,
-                      }}
-                      style={cardStyle}
                     >
                       <div
                         style={{
@@ -361,34 +299,38 @@ export default function AdminReviewPage() {
                           justifyContent:
                             "space-between",
                           alignItems:
-                            "center",
-                          gap: "14px",
-                          flexWrap: "wrap",
+                            "flex-start",
+                          gap: space.md,
+                          flexWrap:
+                            "wrap",
                           marginBottom:
-                            "14px",
+                            space.sm,
                         }}
                       >
                         <div>
-                          <h3
+                          <p
                             style={{
+                              margin: 0,
                               fontSize:
-                                "20px",
-                              marginBottom:
-                                "4px",
+                                font.body,
+                              fontWeight:
+                                weight.medium,
                             }}
                           >
                             {
                               submission
                                 .user.name
                             }
-                          </h3>
+                          </p>
 
                           <p
                             style={{
                               color:
-                                "#64748B",
+                                colour.textFaint,
                               fontSize:
-                                "14px",
+                                font.tiny,
+                              margin:
+                                "2px 0 0",
                             }}
                           >
                             {
@@ -406,33 +348,20 @@ export default function AdminReviewPage() {
                         {risk &&
                           risk.band !==
                             "LOW" && (
-                            <span
-                              style={{
-                                padding:
-                                  "6px 14px",
-                                borderRadius:
-                                  "999px",
-                                fontWeight: 700,
-                                fontSize:
-                                  "13px",
-                                background:
-                                  BAND_STYLES[
-                                    risk
-                                      .band
-                                  ].bg,
-                                color:
-                                  BAND_STYLES[
-                                    risk
-                                      .band
-                                  ].color,
-                              }}
+                            <Badge
+                              tone={
+                                BAND_TONE[
+                                  risk
+                                    .band
+                                ]
+                              }
                             >
                               {risk.band}{" "}
-                              RISK ·{" "}
+                              risk ·{" "}
                               {
                                 risk.riskScore
                               }
-                            </span>
+                            </Badge>
                           )}
                       </div>
 
@@ -444,10 +373,8 @@ export default function AdminReviewPage() {
                           target="_blank"
                           rel="noreferrer"
                           style={{
-                            color:
-                              "#60A5FA",
                             fontSize:
-                              "14px",
+                              font.small,
                             wordBreak:
                               "break-all",
                           }}
@@ -463,15 +390,14 @@ export default function AdminReviewPage() {
                           .length > 0 && (
                           <ul
                             style={{
-                              margin:
-                                "14px 0 0",
+                              margin: `${space.md} 0 0`,
                               paddingLeft:
-                                "20px",
+                                "18px",
                               color:
-                                "#FCD34D",
+                                colour.warn,
                               fontSize:
-                                "14px",
-                              lineHeight: 1.7,
+                                font.small,
+                              lineHeight: 1.6,
                             }}
                           >
                             {risk.reasons.map(
@@ -493,12 +419,12 @@ export default function AdminReviewPage() {
                       <div
                         style={{
                           display: "flex",
-                          gap: "12px",
+                          gap: space.sm,
                           marginTop:
-                            "20px",
+                            space.lg,
                         }}
                       >
-                        <button
+                        <Button
                           onClick={() =>
                             review(
                               submission,
@@ -506,31 +432,14 @@ export default function AdminReviewPage() {
                             )
                           }
                           disabled={busy}
-                          style={{
-                            background:
-                              busy
-                                ? "#1E293B"
-                                : "linear-gradient(135deg,#22C55E,#4ADE80)",
-                            color: busy
-                              ? "#64748B"
-                              : "#081018",
-                            border: "none",
-                            padding:
-                              "12px 24px",
-                            borderRadius:
-                              "12px",
-                            fontWeight: 700,
-                            cursor: busy
-                              ? "not-allowed"
-                              : "pointer",
-                          }}
                         >
                           {busy
                             ? "Saving..."
                             : "Approve"}
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
+                          variant="danger"
                           onClick={() =>
                             review(
                               submission,
@@ -538,96 +447,85 @@ export default function AdminReviewPage() {
                             )
                           }
                           disabled={busy}
-                          style={{
-                            background:
-                              "transparent",
-                            color:
-                              "#FCA5A5",
-                            border:
-                              "1px solid rgba(239,68,68,0.4)",
-                            padding:
-                              "12px 24px",
-                            borderRadius:
-                              "12px",
-                            fontWeight: 700,
-                            cursor: busy
-                              ? "not-allowed"
-                              : "pointer",
-                          }}
                         >
                           Reject
-                        </button>
+                        </Button>
                       </div>
-                    </motion.div>
+                    </Card>
                   );
                 }
               )}
             </div>
           )}
 
-          {/* ---------------- Risk queue ---------------- */}
-          <h2
+          {/* Risk ------------------------------------------------ */}
+          <div
             style={{
-              fontSize: "28px",
-              marginBottom: "10px",
+              display: "flex",
+              alignItems: "baseline",
+              gap: space.sm,
+              marginBottom: space.xs,
             }}
           >
-            Risk signals
+            <h2
+              style={{
+                fontSize: font.title,
+                fontWeight:
+                  weight.semibold,
+                margin: 0,
+              }}
+            >
+              Risk signals
+            </h2>
+
             <span
               style={{
-                color: "#64748B",
-                fontSize: "18px",
-                fontWeight: 400,
-                marginLeft: "10px",
+                color: colour.textFaint,
+                fontSize: font.small,
               }}
             >
               {flagged.length} of{" "}
               {population} participants
             </span>
-          </h2>
+          </div>
 
           <p
             style={{
-              color: "#64748B",
-              fontSize: "14px",
-              lineHeight: 1.7,
-              maxWidth: "820px",
-              marginBottom: "20px",
+              color: colour.textFaint,
+              fontSize: font.tiny,
+              lineHeight: 1.6,
+              maxWidth: "70ch",
+              margin: `0 0 ${space.lg}`,
             }}
           >
             These are review signals, not
             conclusions. Nothing here
-            applies a penalty on its own.
-            <br />
+            applies a penalty on its own.{" "}
             {modelUsed
               ? "Scored with the explainable rules plus an anomaly model fitted to this population."
               : queueNote}
           </p>
 
           {flagged.length === 0 ? (
-            <div
-              style={{
-                ...cardStyle,
-                color: "#94A3B8",
-              }}
-            >
-              No participation is
-              currently flagged.
-            </div>
+            <Card>
+              <Muted>
+                No participation is
+                currently flagged.
+              </Muted>
+            </Card>
           ) : (
             <div
               style={{
                 display: "grid",
-                gap: "16px",
+                gap: space.md,
               }}
             >
               {flagged.map((a) => (
-                <div
+                <Card
                   key={
                     a.userId +
                     a.challengeId
                   }
-                  style={cardStyle}
                 >
                   <div
                     style={{
@@ -635,30 +533,39 @@ export default function AdminReviewPage() {
                       justifyContent:
                         "space-between",
                       alignItems:
-                        "center",
-                      gap: "14px",
+                        "flex-start",
+                      gap: space.md,
                       flexWrap: "wrap",
-                      marginBottom: "12px",
+                      marginBottom:
+                        space.sm,
                     }}
                   >
                     <div>
-                      <h3
+                      <p
                         style={{
-                          fontSize: "20px",
-                          marginBottom:
-                            "4px",
+                          margin: 0,
+                          fontSize:
+                            font.body,
+                          fontWeight:
+                            weight.medium,
                         }}
                       >
                         {a.userName}
-                      </h3>
+                      </p>
 
                       <p
                         style={{
-                          color: "#64748B",
-                          fontSize: "14px",
+                          color:
+                            colour.textFaint,
+                          fontSize:
+                            font.tiny,
+                          margin:
+                            "2px 0 0",
                         }}
                       >
-                        {a.challengeTitle}{" "}
+                        {
+                          a.challengeTitle
+                        }{" "}
                         ·{" "}
                         {
                           a.features
@@ -671,35 +578,24 @@ export default function AdminReviewPage() {
                       </p>
                     </div>
 
-                    <span
-                      style={{
-                        padding:
-                          "6px 14px",
-                        borderRadius:
-                          "999px",
-                        fontWeight: 700,
-                        fontSize: "13px",
-                        background:
-                          BAND_STYLES[
-                            a.band
-                          ].bg,
-                        color:
-                          BAND_STYLES[
-                            a.band
-                          ].color,
-                      }}
+                    <Badge
+                      tone={
+                        BAND_TONE[a.band]
+                      }
                     >
-                      {a.band} · {a.riskScore}
-                    </span>
+                      {a.band} ·{" "}
+                      {a.riskScore}
+                    </Badge>
                   </div>
 
                   <ul
                     style={{
                       margin: 0,
-                      paddingLeft: "20px",
-                      color: "#CBD5E1",
-                      fontSize: "15px",
-                      lineHeight: 1.8,
+                      paddingLeft: "18px",
+                      color:
+                        colour.textMuted,
+                      fontSize: font.small,
+                      lineHeight: 1.7,
                     }}
                   >
                     {a.reasons.map((r) => (
@@ -708,7 +604,7 @@ export default function AdminReviewPage() {
                       </li>
                     ))}
                   </ul>
-                </div>
+                </Card>
               ))}
             </div>
           )}

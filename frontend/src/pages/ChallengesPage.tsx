@@ -1,8 +1,24 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 
 import Layout from "../components/Layout";
 import api from "../services/api";
+
+import {
+  Card,
+  Button,
+  Badge,
+  PageHeader,
+  Notice,
+  Muted,
+} from "../components/ui";
+
+import {
+  colour,
+  space,
+  font,
+  weight,
+  money,
+} from "../theme";
 
 interface Challenge {
   id: string;
@@ -15,9 +31,7 @@ interface Challenge {
   endDate: string;
   isActive: boolean;
   completed: boolean;
-  _count?: {
-    participants: number;
-  };
+  _count?: { participants: number };
 }
 
 interface Participation {
@@ -25,42 +39,21 @@ interface Participation {
   challengeId: string;
 }
 
-const cardStyle = {
-  background: "#111827",
-  border: "1px solid #1E293B",
-  borderRadius: "24px",
-  padding: "28px",
-  boxShadow:
-    "0 10px 30px rgba(0,0,0,0.25)",
-  display: "flex",
-  flexDirection: "column" as const,
-};
-
-/** Whole days between start and end, minimum 1. */
 const durationInDays = (
   challenge: Challenge
 ) => {
-  const start = new Date(
-    challenge.startDate
-  ).getTime();
-
-  const end = new Date(
-    challenge.endDate
-  ).getTime();
-
   const days = Math.ceil(
-    (end - start) /
-      (1000 * 60 * 60 * 24)
+    (new Date(
+      challenge.endDate
+    ).getTime() -
+      new Date(
+        challenge.startDate
+      ).getTime()) /
+      86400000
   );
 
   return days > 0 ? days : 1;
 };
-
-const formatMoney = (value: number) =>
-  "₹" +
-  value.toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  });
 
 export default function ChallengesPage() {
   const [challenges, setChallenges] =
@@ -78,15 +71,11 @@ export default function ChallengesPage() {
   const [loadError, setLoadError] =
     useState("");
 
-  // id of the challenge currently being joined
   const [joiningId, setJoiningId] =
     useState<string | null>(null);
 
-  // per-card error message, keyed by challenge id
   const [joinErrors, setJoinErrors] =
-    useState<Record<string, string>>(
-      {}
-    );
+    useState<Record<string, string>>({});
 
   const [successMessage, setSuccessMessage] =
     useState("");
@@ -108,8 +97,8 @@ export default function ChallengesPage() {
         ]);
 
         setChallenges(
-          challengeRes.data
-            .challenges ?? []
+          challengeRes.data.challenges ??
+            []
         );
 
         const mine: Participation[] =
@@ -129,8 +118,7 @@ export default function ChallengesPage() {
         );
       } catch (err: any) {
         setLoadError(
-          err?.response?.data
-            ?.message ||
+          err?.response?.data?.message ||
             "Could not load challenges. Is the server running?"
         );
       } finally {
@@ -163,7 +151,6 @@ export default function ChallengesPage() {
         return next;
       });
 
-      // The server returns the authoritative wallet after the debit.
       if (
         response.data.wallet?.balance !==
         undefined
@@ -173,7 +160,6 @@ export default function ChallengesPage() {
         );
       }
 
-      // Keep the participant count honest without a full refetch.
       setChallenges((prev) =>
         prev.map((c) =>
           c.id === challenge.id
@@ -191,16 +177,15 @@ export default function ChallengesPage() {
       );
 
       setSuccessMessage(
-        `You committed ${formatMoney(
+        `You committed ${money(
           challenge.entryFee
-        )} to "${challenge.title}".`
+        )} to ${challenge.title}.`
       );
     } catch (err: any) {
       setJoinErrors((prev) => ({
         ...prev,
         [challenge.id]:
-          err?.response?.data
-            ?.message ||
+          err?.response?.data?.message ||
           "Could not join this challenge. Please try again.",
       }));
     } finally {
@@ -210,235 +195,171 @@ export default function ChallengesPage() {
 
   return (
     <Layout>
-      {/* Hero */}
-      <div
-        style={{
-          marginBottom: "40px",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "56px",
-            fontWeight: 800,
-            marginBottom: "16px",
-          }}
-        >
-          Challenges
-        </h1>
+      <PageHeader
+        title="Challenges"
+        description="Commit a stake to a goal. Show up daily, or lose part of it."
+        action={
+          balance !== null ? (
+            <div
+              style={{
+                textAlign: "right",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: font.tiny,
+                  color: colour.textFaint,
+                  margin: 0,
+                }}
+              >
+                Wallet
+              </p>
 
-        <p
-          style={{
-            fontSize: "20px",
-            color: "#94A3B8",
-            maxWidth: "800px",
-            lineHeight: 1.8,
-          }}
-        >
-          Consistency isn't talent.
+              <p
+                style={{
+                  fontSize: font.title,
+                  fontWeight:
+                    weight.semibold,
+                  margin: 0,
+                }}
+              >
+                {money(balance)}
+              </p>
+            </div>
+          ) : undefined
+        }
+      />
 
-          <br />
-          <br />
-
-          It's a decision made every
-          day.
-        </p>
-
-        {balance !== null && (
-          <div
-            style={{
-              display:
-                "inline-block",
-              marginTop: "28px",
-              padding: "10px 18px",
-              borderRadius: "999px",
-              background:
-                "rgba(34,197,94,0.12)",
-              border:
-                "1px solid rgba(34,197,94,0.25)",
-              color: "#4ADE80",
-              fontWeight: 600,
-            }}
-          >
-            Wallet balance:{" "}
-            {formatMoney(balance)}
-          </div>
-        )}
-      </div>
-
-      {/* Success banner */}
       {successMessage && (
-        <div
-          style={{
-            marginBottom: "24px",
-            padding: "16px 20px",
-            borderRadius: "16px",
-            background:
-              "rgba(34,197,94,0.12)",
-            border:
-              "1px solid rgba(34,197,94,0.3)",
-            color: "#4ADE80",
-          }}
-        >
+        <Notice tone="accent">
           {successMessage}
-        </div>
+        </Notice>
       )}
 
-      {/* Loading */}
       {loading && (
-        <p
-          style={{
-            color: "#94A3B8",
-            fontSize: "18px",
-          }}
-        >
+        <Muted>
           Loading challenges...
-        </p>
+        </Muted>
       )}
 
-      {/* Load error */}
       {!loading && loadError && (
-        <div
-          style={{
-            padding: "20px 24px",
-            borderRadius: "16px",
-            background:
-              "rgba(239,68,68,0.1)",
-            border:
-              "1px solid rgba(239,68,68,0.3)",
-            color: "#FCA5A5",
-          }}
-        >
+        <Notice tone="danger">
           {loadError}
-        </div>
+        </Notice>
       )}
 
-      {/* Empty state */}
       {!loading &&
         !loadError &&
         challenges.length === 0 && (
-          <div
+          <Card
             style={{
-              ...cardStyle,
-              textAlign:
-                "center" as const,
-              padding: "60px 28px",
+              textAlign: "center",
+              padding: space["3xl"],
             }}
           >
             <h2
               style={{
-                marginBottom: "12px",
+                fontSize: font.heading,
+                fontWeight:
+                  weight.semibold,
+                marginBottom: space.sm,
               }}
             >
               No challenges yet
             </h2>
 
-            <p
-              style={{
-                color: "#94A3B8",
-                lineHeight: 1.7,
-              }}
-            >
-              Once an admin creates a
-              challenge, it will show
-              up here and you can
-              commit to it.
-            </p>
-          </div>
+            <Muted>
+              Once an admin creates one,
+              it appears here.
+            </Muted>
+          </Card>
         )}
 
-      {/* Challenge cards */}
       {!loading && !loadError && (
         <div
           style={{
             display: "grid",
             gridTemplateColumns:
-              "repeat(auto-fit,minmax(340px,1fr))",
-            gap: "24px",
+              "repeat(auto-fill,minmax(320px,1fr))",
+            gap: space.lg,
           }}
         >
-          {challenges.map(
-            (challenge) => {
-              const joined =
-                joinedIds.has(
-                  challenge.id
-                );
+          {challenges.map((challenge) => {
+            const joined = joinedIds.has(
+              challenge.id
+            );
 
-              const ended =
-                new Date(
-                  challenge.endDate
-                ).getTime() <=
-                Date.now();
+            const ended =
+              new Date(
+                challenge.endDate
+              ).getTime() <= Date.now();
 
-              const closed =
-                challenge.completed ||
-                !challenge.isActive ||
-                ended;
+            const closed =
+              challenge.completed ||
+              !challenge.isActive ||
+              ended;
 
-              const cantAfford =
-                balance !== null &&
-                balance <
-                  challenge.entryFee;
+            const cantAfford =
+              balance !== null &&
+              balance < challenge.entryFee;
 
-              const busy =
-                joiningId ===
-                challenge.id;
+            const busy =
+              joiningId === challenge.id;
 
-              const disabled =
-                joined ||
-                closed ||
-                cantAfford ||
-                busy;
+            const disabled =
+              joined ||
+              closed ||
+              cantAfford ||
+              busy;
 
-              let label = "Join Journey";
+            let buttonLabel = "Join";
 
-              if (busy)
-                label = "Joining...";
-              else if (joined)
-                label = "Already Joined";
-              else if (
-                challenge.completed
-              )
-                label = "Completed";
-              else if (closed)
-                label = "Closed";
-              else if (cantAfford)
-                label =
-                  "Insufficient Balance";
+            if (busy)
+              buttonLabel = "Joining...";
+            else if (joined)
+              buttonLabel = "Joined";
+            else if (closed)
+              buttonLabel = "Closed";
+            else if (cantAfford)
+              buttonLabel =
+                "Insufficient balance";
 
-              return (
-                <motion.div
-                  key={challenge.id}
-                  whileHover={
-                    disabled
-                      ? undefined
-                      : {
-                          y: -8,
-                          scale: 1.02,
-                        }
-                  }
-                  style={cardStyle}
+            return (
+              <Card
+                key={challenge.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent:
+                      "space-between",
+                    alignItems:
+                      "flex-start",
+                    gap: space.sm,
+                    marginBottom: space.md,
+                  }}
                 >
-                  <div
+                  <h2
                     style={{
-                      display:
-                        "inline-block",
-                      alignSelf:
-                        "flex-start",
-                      padding:
-                        "8px 14px",
-                      borderRadius:
-                        "999px",
-                      background: closed
-                        ? "rgba(148,163,184,0.15)"
-                        : "rgba(34,197,94,0.15)",
-                      color: closed
-                        ? "#94A3B8"
-                        : "#4ADE80",
-                      fontWeight: 700,
-                      fontSize: "14px",
-                      marginBottom:
-                        "18px",
+                      fontSize: font.heading,
+                      fontWeight:
+                        weight.semibold,
+                      margin: 0,
                     }}
+                  >
+                    {challenge.title}
+                  </h2>
+
+                  <Badge
+                    tone={
+                      closed
+                        ? "neutral"
+                        : "accent"
+                    }
                   >
                     {challenge.completed
                       ? "Completed"
@@ -447,137 +368,134 @@ export default function ChallengesPage() {
                       : !challenge.isActive
                       ? "Closed"
                       : "Open"}
-                  </div>
+                  </Badge>
+                </div>
 
-                  <h2
-                    style={{
-                      marginBottom:
-                        "14px",
-                      fontSize: "26px",
-                    }}
-                  >
-                    {challenge.title}
-                  </h2>
+                <p
+                  style={{
+                    color:
+                      colour.textMuted,
+                    fontSize: font.small,
+                    lineHeight: 1.6,
+                    margin: `0 0 ${space.lg}`,
+                    flex: 1,
+                  }}
+                >
+                  {challenge.description ||
+                    "No description provided."}
+                </p>
 
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent:
+                      "space-between",
+                    borderTop: `1px solid ${colour.border}`,
+                    paddingTop: space.md,
+                    marginBottom: space.md,
+                  }}
+                >
+                  {[
+                    {
+                      k: "Stake",
+                      v: money(
+                        challenge.entryFee
+                      ),
+                    },
+                    {
+                      k: "Duration",
+                      v: `${durationInDays(
+                        challenge
+                      )}d`,
+                    },
+                    {
+                      k: "Joined",
+                      v: String(
+                        challenge._count
+                          ?.participants ??
+                          0
+                      ),
+                    },
+                  ].map((cell) => (
+                    <div key={cell.k}>
+                      <p
+                        style={{
+                          fontSize:
+                            font.tiny,
+                          color:
+                            colour.textFaint,
+                          margin: 0,
+                        }}
+                      >
+                        {cell.k}
+                      </p>
+
+                      <p
+                        style={{
+                          fontSize:
+                            font.body,
+                          fontWeight:
+                            weight.medium,
+                          margin: 0,
+                        }}
+                      >
+                        {cell.v}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <p
+                  style={{
+                    fontSize: font.tiny,
+                    color: colour.textFaint,
+                    margin: `0 0 ${space.md}`,
+                  }}
+                >
+                  Up to{" "}
+                  {challenge.maxMisses}{" "}
+                  missed days ·{" "}
+                  {
+                    challenge.penaltyPercentage
+                  }
+                  % penalty each
+                </p>
+
+                {joinErrors[
+                  challenge.id
+                ] && (
                   <p
                     style={{
-                      color: "#94A3B8",
-                      lineHeight: 1.7,
-                      marginBottom:
-                        "24px",
+                      color: colour.danger,
+                      fontSize: font.small,
+                      margin: `0 0 ${space.md}`,
                     }}
                   >
-                    {challenge.description ||
-                      "No description provided."}
-                  </p>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection:
-                        "column",
-                      gap: "10px",
-                      marginBottom:
-                        "24px",
-                      color: "#CBD5E1",
-                    }}
-                  >
-                    <div>
-                      Stake:{" "}
-                      <strong>
-                        {formatMoney(
-                          challenge.entryFee
-                        )}
-                      </strong>
-                    </div>
-
-                    <div>
-                      Duration:{" "}
-                      {durationInDays(
-                        challenge
-                      )}{" "}
-                      days
-                    </div>
-
-                    <div>
-                      Participants:{" "}
-                      {challenge._count
-                        ?.participants ??
-                        0}
-                    </div>
-
-                    <div
-                      style={{
-                        color:
-                          "#94A3B8",
-                        fontSize:
-                          "14px",
-                      }}
-                    >
-                      Up to{" "}
-                      {
-                        challenge.maxMisses
-                      }{" "}
-                      missed days ·{" "}
-                      {
-                        challenge.penaltyPercentage
-                      }
-                      % penalty per miss
-                    </div>
-                  </div>
-
-                  {joinErrors[
-                    challenge.id
-                  ] && (
-                    <p
-                      style={{
-                        color: "#FCA5A5",
-                        marginBottom:
-                          "14px",
-                        fontSize: "14px",
-                      }}
-                    >
-                      {
-                        joinErrors[
-                          challenge.id
-                        ]
-                      }
-                    </p>
-                  )}
-
-                  <button
-                    onClick={() =>
-                      handleJoin(
-                        challenge
-                      )
+                    {
+                      joinErrors[
+                        challenge.id
+                      ]
                     }
-                    disabled={disabled}
-                    style={{
-                      marginTop: "auto",
-                      width: "100%",
-                      background: disabled
-                        ? "#1E293B"
-                        : "linear-gradient(135deg,#22C55E,#4ADE80)",
-                      border: "none",
-                      color: disabled
-                        ? "#64748B"
-                        : "#081018",
-                      padding: "14px",
-                      borderRadius:
-                        "14px",
-                      fontWeight: 700,
-                      fontSize: "15px",
-                      cursor: disabled
-                        ? "not-allowed"
-                        : "pointer",
-                    }}
-                  >
-                    {label}
-                  </button>
-                </motion.div>
-              );
-            }
-          )}
+                  </p>
+                )}
+
+                <Button
+                  onClick={() =>
+                    handleJoin(challenge)
+                  }
+                  disabled={disabled}
+                  fullWidth
+                  variant={
+                    disabled
+                      ? "secondary"
+                      : "quiet"
+                  }
+                >
+                  {buttonLabel}
+                </Button>
+              </Card>
+            );
+          })}
         </div>
       )}
     </Layout>

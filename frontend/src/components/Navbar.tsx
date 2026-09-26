@@ -2,9 +2,18 @@ import { useEffect, useState } from "react";
 import {
   Link,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import api from "../services/api";
+import {
+  colour,
+  space,
+  radius,
+  font,
+  weight,
+  money,
+} from "../theme";
 
 interface CurrentUser {
   name: string;
@@ -17,6 +26,7 @@ interface CurrentUser {
 
 export default function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [user, setUser] =
     useState<CurrentUser | null>(null);
@@ -27,47 +37,31 @@ export default function Navbar() {
     api
       .get("/auth/me")
       .then((res) => {
-        if (!cancelled) {
+        if (!cancelled)
           setUser(res.data.user);
-        }
       })
       .catch(() => {
-        // The navbar is decorative here - if this fails the page
-        // itself will surface the error, so stay silent.
+        // The page itself surfaces any real error.
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [location.pathname]);
 
   const initial = user?.name
-    ? user.name.charAt(0).toUpperCase()
+    ? user.name
+        .charAt(0)
+        .toUpperCase()
     : "·";
 
   const navItems = [
-    {
-      label: "Overview",
-      path: "/dashboard",
-    },
-    {
-      label: "Challenges",
-      path: "/challenges",
-    },
-    {
-      label: "Journey",
-      path: "/my-challenges",
-    },
-    {
-      label: "Insights",
-      path: "/wallet",
-    },
-    {
-      label: "Community",
-      path: "/leaderboard",
-    },
+    { label: "Overview", path: "/dashboard" },
+    { label: "Challenges", path: "/challenges" },
+    { label: "Journey", path: "/my-challenges" },
+    { label: "Wallet", path: "/wallet" },
+    { label: "Community", path: "/leaderboard" },
 
-    // Admins get the review queue. The backend enforces this too.
     ...(user?.role === "ADMIN"
       ? [
           {
@@ -78,240 +72,160 @@ export default function Navbar() {
       : []),
   ];
 
+  const signOut = () => {
+    localStorage.removeItem("token");
+    navigate("/");
+  };
+
   return (
     <nav
       style={{
         position: "sticky",
         top: 0,
-        zIndex: 999,
-        backdropFilter: "blur(24px)",
-        background:
-          "rgba(5,8,22,0.82)",
-        borderBottom:
-          "1px solid rgba(255,255,255,0.04)",
-        padding: "20px 48px",
+        zIndex: 50,
+        background: "rgba(10,14,22,0.85)",
+        backdropFilter: "blur(12px)",
+        borderBottom: `1px solid ${colour.border}`,
       }}
     >
       <div
         style={{
-          maxWidth: "1700px",
+          maxWidth: "1200px",
           margin: "0 auto",
+          padding: `0 ${space["2xl"]}`,
+          height: "56px",
           display: "flex",
-          justifyContent:
-            "space-between",
           alignItems: "center",
+          gap: space.xl,
         }}
       >
-        {/* LEFT */}
-        <div
+        {/* Wordmark. One weight, one colour - it is a product, not a poster. */}
+        <Link
+          to="/dashboard"
           style={{
-            minWidth: "340px",
+            fontSize: font.heading,
+            fontWeight: weight.semibold,
+            letterSpacing: "-0.02em",
+            color: colour.text,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
           }}
         >
-          <h1
-            style={{
-              fontSize: "58px",
-              fontWeight: 900,
-              letterSpacing: "-3px",
-              lineHeight: 1,
-              margin: 0,
+          uCommit
+        </Link>
 
-              background:
-                "linear-gradient(135deg,#72F1B8,#4ADE80,#5EEAD4)",
-
-              WebkitBackgroundClip:
-                "text",
-
-              WebkitTextFillColor:
-                "transparent",
-
-              textShadow:
-                "0 0 25px rgba(114,241,184,0.15)",
-            }}
-          >
-            uCommit
-          </h1>
-
-          <p
-            style={{
-              color: "#64748B",
-              marginTop: "6px",
-              fontSize: "13px",
-              fontWeight: 500,
-            }}
-          >
-            The ultimate accountability partner.
-          </p>
-        </div>
-
-        {/* CENTER */}
         <div
+          className="nav-links"
           style={{
             display: "flex",
-            gap: "28px",
+            gap: space.xs,
+            flex: 1,
           }}
         >
-          {navItems.map(
-            (item) => {
-              const active =
-                location.pathname ===
-                item.path;
+          {navItems.map((item) => {
+            const active =
+              location.pathname ===
+              item.path;
 
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  style={{
-                    textDecoration:
-                      "none",
-
-                    color: active
-                      ? "#F8FAFC"
-                      : "#94A3B8",
-
-                    fontWeight:
-                      active
-                        ? 600
-                        : 500,
-
-                    fontSize: "15px",
-
-                    padding:
-                      "10px 16px",
-
-                    borderRadius:
-                      "12px",
-
-                    background:
-                      active
-                        ? "rgba(255,255,255,0.05)"
-                        : "transparent",
-
-                    border: active
-                      ? "1px solid rgba(255,255,255,0.06)"
-                      : "1px solid transparent",
-
-                    transition:
-                      "all 0.25s ease",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              );
-            }
-          )}
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                style={{
+                  padding: `6px ${space.md}`,
+                  borderRadius: radius.sm,
+                  fontSize: font.small,
+                  fontWeight: active
+                    ? weight.medium
+                    : weight.regular,
+                  color: active
+                    ? colour.text
+                    : colour.textMuted,
+                  background: active
+                    ? colour.surfaceRaised
+                    : "transparent",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
 
-        {/* RIGHT */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "14px",
+            gap: space.md,
           }}
         >
-          <div
-            style={{
-              padding:
-                "10px 16px",
-              borderRadius:
-                "999px",
-
-              background:
-                "rgba(255,255,255,0.03)",
-
-              border:
-                "1px solid rgba(255,255,255,0.05)",
-
-              color: "#CBD5E1",
-
-              fontSize: "14px",
-              fontWeight: 600,
-            }}
-          >
-            {user?.wallet
-              ? "Balance: ₹" +
-                user.wallet.balance.toLocaleString(
-                  "en-IN",
-                  {
-                    maximumFractionDigits: 2,
-                  }
-                )
-              : "Balance: —"}
-          </div>
+          {user?.wallet && (
+            <span
+              style={{
+                fontSize: font.small,
+                color: colour.textMuted,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {money(
+                user.wallet.balance
+              )}
+            </span>
+          )}
 
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "12px",
-
-              padding:
-                "10px 14px",
-
-              borderRadius:
-                "16px",
-
-              background:
-                "rgba(255,255,255,0.03)",
-
-              border:
-                "1px solid rgba(255,255,255,0.05)",
+              gap: space.sm,
             }}
           >
-            <div
+            <span
               style={{
-                width: "42px",
-                height: "42px",
-
-                borderRadius:
-                  "50%",
-
+                width: "26px",
+                height: "26px",
+                borderRadius: radius.pill,
                 background:
-                  "linear-gradient(135deg,#72F1B8,#5EEAD4)",
-
+                  colour.surfaceRaised,
+                border: `1px solid ${colour.border}`,
+                color: colour.textMuted,
                 display: "flex",
-
-                justifyContent:
-                  "center",
-
-                alignItems:
-                  "center",
-
-                color: "#081018",
-
-                fontWeight: 800,
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: font.tiny,
+                fontWeight: weight.semibold,
               }}
             >
               {initial}
-            </div>
+            </span>
 
-            <div>
-              <div
-                style={{
-                  color:
-                    "#F8FAFC",
-                  fontWeight:
-                    600,
-                  fontSize:
-                    "14px",
-                }}
-              >
-                {user?.name ?? "Loading…"}
-              </div>
-
-              <div
-                style={{
-                  color:
-                    "#64748B",
-                  fontSize:
-                    "12px",
-                }}
-              >
-                {user?.email ?? ""}
-              </div>
-            </div>
+            <span
+              className="nav-identity-text"
+              style={{
+                fontSize: font.small,
+                color: colour.textMuted,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {user?.name ?? ""}
+            </span>
           </div>
+
+          <button
+            onClick={signOut}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: colour.textFaint,
+              fontSize: font.small,
+              cursor: "pointer",
+              padding: `4px ${space.sm}`,
+            }}
+          >
+            Sign out
+          </button>
         </div>
       </div>
     </nav>

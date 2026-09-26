@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 
 import api from "../services/api";
+import {
+  colour,
+  space,
+  radius,
+  font,
+  weight,
+} from "../theme";
 
 interface CoachResponse {
   status:
@@ -13,10 +20,7 @@ interface CoachResponse {
 
 /**
  * The AI coach's reflection on the signed in user's own numbers.
- *
- * Renders nothing at all when the server has no API key configured, so
- * an unconfigured install shows no broken or empty panel. Any failure
- * is contained here - the rest of the dashboard is unaffected.
+ * Renders nothing when the server has no key configured.
  */
 export default function CoachPanel() {
   const [state, setState] =
@@ -34,9 +38,7 @@ export default function CoachPanel() {
           "/ai/status"
         );
 
-        if (
-          !status.data.configured
-        ) {
+        if (!status.data.configured) {
           if (!cancelled) {
             setState(null);
             setLoading(false);
@@ -51,7 +53,6 @@ export default function CoachPanel() {
         if (!cancelled)
           setState(res.data);
       } catch {
-        // Silent: the coach is an enhancement, not a requirement.
         if (!cancelled) setState(null);
       } finally {
         if (!cancelled)
@@ -66,7 +67,6 @@ export default function CoachPanel() {
     };
   }, []);
 
-  // Nothing configured, or it failed - show nothing rather than a stub.
   if (
     !loading &&
     (!state ||
@@ -78,52 +78,32 @@ export default function CoachPanel() {
   return (
     <div
       style={{
-        background:
-          "linear-gradient(135deg, rgba(34,197,94,0.07), rgba(96,165,250,0.05))",
-        border:
-          "1px solid rgba(114,241,184,0.18)",
-        borderRadius: "24px",
-        padding: "28px",
-        marginBottom: "32px",
+        background: colour.surface,
+        border: `1px solid ${colour.border}`,
+        borderLeft: `2px solid ${colour.accent}`,
+        borderRadius: radius.lg,
+        padding: space.xl,
+        marginBottom: space.lg,
       }}
     >
-      <div
+      <p
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          marginBottom: "14px",
+          fontSize: font.tiny,
+          fontWeight: weight.medium,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: colour.textFaint,
+          margin: `0 0 ${space.sm}`,
         }}
       >
-        <span
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            background: "#4ADE80",
-            display: "inline-block",
-          }}
-        />
-
-        <h3
-          style={{
-            fontSize: "16px",
-            fontWeight: 700,
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            color: "#72F1B8",
-            margin: 0,
-          }}
-        >
-          Your Coach
-        </h3>
-      </div>
+        Coach
+      </p>
 
       {loading ? (
         <p
           style={{
-            color: "#64748B",
-            fontSize: "17px",
+            color: colour.textMuted,
+            fontSize: font.body,
             margin: 0,
           }}
         >
@@ -133,11 +113,11 @@ export default function CoachPanel() {
         <>
           <p
             style={{
-              color: "#E2E8F0",
-              fontSize: "19px",
-              lineHeight: 1.75,
+              color: colour.text,
+              fontSize: font.body,
+              lineHeight: 1.65,
               margin: 0,
-              maxWidth: "820px",
+              maxWidth: "70ch",
             }}
           >
             {state?.message}
@@ -146,16 +126,15 @@ export default function CoachPanel() {
           {state?.status === "ok" && (
             <p
               style={{
-                color: "#475569",
-                fontSize: "12px",
-                marginTop: "16px",
-                marginBottom: 0,
+                color: colour.textFaint,
+                fontSize: font.tiny,
+                margin: `${space.md} 0 0`,
               }}
             >
               Written by AI from your own
-              figures. The numbers
-              themselves are calculated by
-              uCommit, not the model.
+              figures. The numbers are
+              calculated by uCommit, not
+              the model.
             </p>
           )}
         </>

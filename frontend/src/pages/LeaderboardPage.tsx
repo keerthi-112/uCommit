@@ -1,8 +1,25 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 
 import Layout from "../components/Layout";
 import api from "../services/api";
+
+import {
+  Card,
+  StatTile,
+  TileGrid,
+  PageHeader,
+  Notice,
+  Muted,
+} from "../components/ui";
+
+import {
+  colour,
+  space,
+  radius,
+  font,
+  weight,
+  money,
+} from "../theme";
 
 interface Community {
   totalMembers: number;
@@ -21,7 +38,6 @@ interface Community {
 interface Challenge {
   id: string;
   title: string;
-  completed: boolean;
   _count?: { participants: number };
 }
 
@@ -33,19 +49,6 @@ interface Entry {
   approvedDays: number;
   user: { id: string; name: string };
 }
-
-const cardStyle = {
-  background: "#111827",
-  border: "1px solid #1E293B",
-  borderRadius: "24px",
-  padding: "28px",
-};
-
-const formatMoney = (value: number) =>
-  "₹" +
-  value.toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  });
 
 export default function LeaderboardPage() {
   const [community, setCommunity] =
@@ -76,7 +79,9 @@ export default function LeaderboardPage() {
           communityRes,
           challengeRes,
         ] = await Promise.all([
-          api.get("/challenges/community"),
+          api.get(
+            "/challenges/community"
+          ),
           api.get("/challenges"),
         ]);
 
@@ -88,8 +93,6 @@ export default function LeaderboardPage() {
 
         setChallenges(list);
 
-        // Default to the one with the most participants - the most
-        // interesting board to land on.
         const best = [...list].sort(
           (a, b) =>
             (b._count?.participants ??
@@ -138,27 +141,29 @@ export default function LeaderboardPage() {
   const cohortRows = community
     ? [
         {
-          label: "Currently On Track",
-          value: community.cohort.onTrack,
-          color: "#22C55E",
+          label: "On track",
+          value:
+            community.cohort.onTrack,
+          colour: colour.accent,
         },
         {
-          label: "Missed Once",
+          label: "Missed once",
           value:
             community.cohort.missedOnce,
-          color: "#F59E0B",
+          colour: colour.warn,
         },
         {
-          label: "Missed Twice Or More",
+          label: "Missed twice or more",
           value:
-            community.cohort.missedTwice,
-          color: "#FB923C",
+            community.cohort
+              .missedTwice,
+          colour: colour.warn,
         },
         {
           label: "Eliminated",
           value:
             community.cohort.eliminated,
-          color: "#EF4444",
+          colour: colour.danger,
         },
       ]
     : [];
@@ -170,162 +175,106 @@ export default function LeaderboardPage() {
 
   return (
     <Layout>
-      <div
-        style={{ marginBottom: "44px" }}
-      >
-        <h1
-          style={{
-            fontSize: "52px",
-            fontWeight: 800,
-            marginBottom: "16px",
-          }}
-        >
-          Community Insights
-        </h1>
-
-        <p
-          style={{
-            color: "#94A3B8",
-            fontSize: "19px",
-            maxWidth: "850px",
-            lineHeight: 1.8,
-          }}
-        >
-          People who chose discipline when
-          motivation wasn't enough.
-        </p>
-      </div>
+      <PageHeader
+        title="Community"
+        description="How everyone else is doing on the commitments they made."
+      />
 
       {loading && (
-        <p style={{ color: "#94A3B8" }}>
+        <Muted>
           Loading community data...
-        </p>
+        </Muted>
       )}
 
       {!loading && error && (
-        <div
-          style={{
-            padding: "20px 24px",
-            borderRadius: "16px",
-            background:
-              "rgba(239,68,68,0.1)",
-            border:
-              "1px solid rgba(239,68,68,0.3)",
-            color: "#FCA5A5",
-          }}
-        >
+        <Notice tone="danger">
           {error}
-        </div>
+        </Notice>
       )}
 
       {!loading && !error && community && (
         <>
-          {/* Community totals */}
-          <div
+          <TileGrid>
+            <StatTile
+              value={community.totalMembers.toLocaleString(
+                "en-IN"
+              )}
+              label="Members"
+            />
+            <StatTile
+              value={String(
+                community.activeChallenges
+              )}
+              label="Challenges running"
+            />
+            <StatTile
+              value={community.totalCommitments.toLocaleString(
+                "en-IN"
+              )}
+              label="Commitments made"
+            />
+            <StatTile
+              value={community.approvedSubmissions.toLocaleString(
+                "en-IN"
+              )}
+              label="Days verified"
+              tone="accent"
+            />
+          </TileGrid>
+
+          <Card
             style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit,minmax(240px,1fr))",
-              gap: "20px",
-              marginBottom: "36px",
+              marginTop: space.lg,
+              marginBottom: space.lg,
             }}
           >
-            {[
-              {
-                label: "Members",
-                value:
-                  community.totalMembers,
-              },
-              {
-                label:
-                  "Challenges In Progress",
-                value:
-                  community.activeChallenges,
-              },
-              {
-                label:
-                  "Commitments Made",
-                value:
-                  community.totalCommitments,
-              },
-              {
-                label:
-                  "Days Verified",
-                value:
-                  community.approvedSubmissions,
-              },
-            ].map((item) => (
-              <motion.div
-                key={item.label}
-                whileHover={{ y: -6 }}
-                style={cardStyle}
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems: "baseline",
+                gap: space.md,
+                flexWrap: "wrap",
+                marginBottom: space.lg,
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: font.heading,
+                  fontWeight:
+                    weight.semibold,
+                  margin: 0,
+                }}
               >
-                <p
-                  style={{
-                    color: "#94A3B8",
-                    marginBottom: "8px",
-                  }}
-                >
-                  {item.label}
-                </p>
+                Where everyone stands
+              </h2>
 
-                <h2
-                  style={{
-                    fontSize: "34px",
-                  }}
-                >
-                  {item.value.toLocaleString(
-                    "en-IN"
-                  )}
-                </h2>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Cohort breakdown */}
-          <div
-            style={{
-              ...cardStyle,
-              marginBottom: "36px",
-            }}
-          >
-            <h2
-              style={{
-                marginBottom: "6px",
-                fontSize: "26px",
-              }}
-            >
-              Where Everyone Stands
-            </h2>
-
-            <p
-              style={{
-                color: "#64748B",
-                marginBottom: "28px",
-                fontSize: "14px",
-              }}
-            >
-              {community.cohort.total}{" "}
-              participants across
-              challenges still running.
-            </p>
+              <span
+                style={{
+                  fontSize: font.tiny,
+                  color: colour.textFaint,
+                }}
+              >
+                {community.cohort.total}{" "}
+                participants in running
+                challenges
+              </span>
+            </div>
 
             {community.cohort.total ===
             0 ? (
-              <p
-                style={{
-                  color: "#94A3B8",
-                }}
-              >
+              <Muted>
                 No challenges are running
                 yet.
-              </p>
+              </Muted>
             ) : (
               cohortRows.map((row) => (
                 <div
                   key={row.label}
                   style={{
-                    marginBottom: "22px",
+                    marginBottom:
+                      space.md,
                   }}
                 >
                   <div
@@ -333,16 +282,24 @@ export default function LeaderboardPage() {
                       display: "flex",
                       justifyContent:
                         "space-between",
-                      marginBottom: "8px",
+                      fontSize:
+                        font.small,
+                      marginBottom: "6px",
                     }}
                   >
-                    <span>
+                    <span
+                      style={{
+                        color:
+                          colour.textMuted,
+                      }}
+                    >
                       {row.label}
                     </span>
 
                     <span
                       style={{
-                        fontWeight: 700,
+                        fontWeight:
+                          weight.medium,
                       }}
                     >
                       {row.value}
@@ -351,9 +308,11 @@ export default function LeaderboardPage() {
 
                   <div
                     style={{
-                      height: "14px",
-                      background: "#1E293B",
-                      borderRadius: "999px",
+                      height: "4px",
+                      background:
+                        colour.surfaceInput,
+                      borderRadius:
+                        radius.pill,
                       overflow: "hidden",
                     }}
                   >
@@ -366,31 +325,33 @@ export default function LeaderboardPage() {
                         }%`,
                         height: "100%",
                         background:
-                          row.color,
+                          row.colour,
                       }}
                     />
                   </div>
                 </div>
               ))
             )}
-          </div>
+          </Card>
 
-          {/* Per challenge leaderboard */}
-          <div style={cardStyle}>
+          <Card>
             <div
               style={{
                 display: "flex",
                 justifyContent:
                   "space-between",
                 alignItems: "center",
-                gap: "16px",
+                gap: space.md,
                 flexWrap: "wrap",
-                marginBottom: "8px",
+                marginBottom: space.xs,
               }}
             >
               <h2
                 style={{
-                  fontSize: "26px",
+                  fontSize: font.heading,
+                  fontWeight:
+                    weight.semibold,
+                  margin: 0,
                 }}
               >
                 Leaderboard
@@ -405,14 +366,16 @@ export default function LeaderboardPage() {
                     )
                   }
                   style={{
-                    padding: "12px 14px",
-                    borderRadius: "12px",
-                    background: "#0B1220",
-                    border:
-                      "1px solid #1E293B",
-                    color: "#F8FAFC",
-                    fontSize: "15px",
-                    minWidth: "260px",
+                    padding: `7px ${space.md}`,
+                    borderRadius:
+                      radius.sm,
+                    background:
+                      colour.surfaceInput,
+                    border: `1px solid ${colour.border}`,
+                    color: colour.text,
+                    fontSize: font.small,
+                    fontFamily: "inherit",
+                    minWidth: "240px",
                   }}
                 >
                   {challenges.map((c) => (
@@ -429,9 +392,9 @@ export default function LeaderboardPage() {
 
             <p
               style={{
-                color: "#64748B",
-                fontSize: "14px",
-                marginBottom: "24px",
+                color: colour.textFaint,
+                fontSize: font.tiny,
+                margin: `0 0 ${space.lg}`,
               }}
             >
               Ranked by days shown up,
@@ -439,23 +402,15 @@ export default function LeaderboardPage() {
             </p>
 
             {boardLoading && (
-              <p
-                style={{ color: "#94A3B8" }}
-              >
-                Loading...
-              </p>
+              <Muted>Loading...</Muted>
             )}
 
             {!boardLoading &&
               entries.length === 0 && (
-                <p
-                  style={{
-                    color: "#94A3B8",
-                  }}
-                >
+                <Muted>
                   Nobody has joined this
                   challenge yet.
-                </p>
+                </Muted>
               )}
 
             {!boardLoading &&
@@ -465,37 +420,46 @@ export default function LeaderboardPage() {
                     key={entry.id}
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
-                      padding: "16px 0",
+                      alignItems:
+                        "center",
+                      gap: space.md,
+                      padding: `${space.md} 0`,
                       borderBottom:
                         index !==
-                        entries.length - 1
-                          ? "1px solid #1E293B"
+                        entries.length -
+                          1
+                          ? `1px solid ${colour.border}`
                           : "none",
                       opacity:
                         entry.eliminated
-                          ? 0.55
+                          ? 0.5
                           : 1,
                     }}
                   >
                     <span
                       style={{
-                        width: "34px",
-                        color: "#64748B",
-                        fontWeight: 700,
-                        fontSize: "17px",
+                        width: "24px",
+                        color:
+                          colour.textFaint,
+                        fontSize:
+                          font.small,
+                        fontVariantNumeric:
+                          "tabular-nums",
                       }}
                     >
                       {index + 1}
                     </span>
 
-                    <div style={{ flex: 1 }}>
+                    <div
+                      style={{ flex: 1 }}
+                    >
                       <p
                         style={{
                           margin: 0,
-                          fontWeight: 600,
-                          fontSize: "16px",
+                          fontSize:
+                            font.body,
+                          fontWeight:
+                            weight.medium,
                         }}
                       >
                         {entry.user.name}
@@ -503,11 +467,13 @@ export default function LeaderboardPage() {
                           <span
                             style={{
                               color:
-                                "#FCA5A5",
+                                colour.danger,
                               fontSize:
-                                "13px",
+                                font.tiny,
                               marginLeft:
-                                "10px",
+                                space.sm,
+                              fontWeight:
+                                weight.regular,
                             }}
                           >
                             eliminated
@@ -517,9 +483,11 @@ export default function LeaderboardPage() {
 
                       <p
                         style={{
-                          color: "#64748B",
-                          fontSize: "13px",
-                          marginTop: "4px",
+                          color:
+                            colour.textFaint,
+                          fontSize:
+                            font.tiny,
+                          margin: "2px 0 0",
                         }}
                       >
                         {entry.misses}{" "}
@@ -527,45 +495,44 @@ export default function LeaderboardPage() {
                           ? "miss"
                           : "misses"}{" "}
                         ·{" "}
-                        {formatMoney(
+                        {money(
                           entry.currentStake
                         )}{" "}
                         at stake
                       </p>
                     </div>
 
-                    <div
+                    <span
                       style={{
-                        textAlign: "right",
+                        fontSize:
+                          font.body,
+                        fontWeight:
+                          weight.semibold,
+                        color:
+                          colour.accentText,
+                        fontVariantNumeric:
+                          "tabular-nums",
                       }}
                     >
-                      <p
+                      {entry.approvedDays}
+                      <span
                         style={{
-                          margin: 0,
-                          fontSize: "22px",
-                          fontWeight: 700,
-                          color: "#4ADE80",
-                        }}
-                      >
-                        {
-                          entry.approvedDays
-                        }
-                      </p>
-
-                      <p
-                        style={{
-                          color: "#64748B",
-                          fontSize: "12px",
-                          margin: 0,
+                          color:
+                            colour.textFaint,
+                          fontWeight:
+                            weight.regular,
+                          fontSize:
+                            font.tiny,
+                          marginLeft: "4px",
                         }}
                       >
                         days
-                      </p>
-                    </div>
+                      </span>
+                    </span>
                   </div>
                 )
               )}
-          </div>
+          </Card>
         </>
       )}
     </Layout>
