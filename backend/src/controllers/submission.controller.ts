@@ -1,6 +1,13 @@
 import { Request, Response } from "express";
 import prisma from "../prisma/client";
 
+import {
+  todayKey,
+  dayKey,
+  queryFloor,
+  queryCeiling,
+} from "../utils/time";
+
 interface AuthRequest extends Request {
   userId?: string;
 }
@@ -85,25 +92,45 @@ export const submitProof = async (
       });
     }
 
-    const today = new Date();
+    // "Today" is the user's own calendar day, not the server's. The
+    // close-out job uses the same rule, so a day accepted here is never
+    // later counted as missed.
+    const user =
+      await prisma.user.findUnique({
+        where: { id: req.userId },
+        select: { timezone: true },
+      });
 
-    today.setHours(
-      0,
-      0,
-      0,
-      0
-    );
+    const timezone =
+      user?.timezone ?? "UTC";
+
+    const today = todayKey(timezone);
+
+    // Narrow by timestamp, then decide membership by day key - a wide
+    // window so no timezone can fall outside it.
+    const nearby =
+      await prisma.dailySubmission.findMany(
+        {
+          where: {
+            userId: req.userId,
+            challengeId,
+            submittedAt: {
+              gte: queryFloor(today),
+              lte: queryCeiling(today),
+            },
+          },
+          select: { submittedAt: true },
+        }
+      );
 
     const existingSubmission =
-      await prisma.dailySubmission.findFirst({
-        where: {
-          userId: req.userId,
-          challengeId,
-          submittedAt: {
-            gte: today,
-          },
-        },
-      });
+      nearby.find(
+        (s) =>
+          dayKey(
+            s.submittedAt,
+            timezone
+          ) === today
+      );
 
     if (existingSubmission) {
       return res.status(400).json({

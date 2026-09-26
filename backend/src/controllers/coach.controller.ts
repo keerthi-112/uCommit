@@ -2,6 +2,13 @@ import { Request, Response } from "express";
 import prisma from "../prisma/client";
 
 import {
+  dayKey,
+  todayKey,
+  daysBetween,
+  previousDayKey,
+} from "../utils/time";
+
+import {
   generateCoachMessage,
   isCoachConfigured,
   CoachFacts,
@@ -10,8 +17,6 @@ import {
 interface AuthRequest extends Request {
   userId?: string;
 }
-
-const DAY_MS = 86400000;
 
 const WEEKDAYS = [
   "Sunday",
@@ -23,35 +28,21 @@ const WEEKDAYS = [
   "Saturday",
 ];
 
-function startOfDay(d: Date): Date {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-/**
- * A day key in LOCAL time. Not toISOString(), which shifts to UTC and
- * moves local midnight onto the previous date east of Greenwich.
- */
-function toKey(d: Date): string {
-  const day = startOfDay(d);
-
-  const month = String(
-    day.getMonth() + 1
-  ).padStart(2, "0");
-
-  const date = String(
-    day.getDate()
-  ).padStart(2, "0");
-
-  return `${day.getFullYear()}-${month}-${date}`;
+/** Weekday name for a day key, without reintroducing server local time. */
+function weekdayOf(key: string): string {
+  return WEEKDAYS[
+    new Date(
+      key + "T12:00:00Z"
+    ).getUTCDay()
+  ];
 }
 
 /**
  * Builds the coach's view of one user and asks for a reflection.
  *
  * Every number handed to the model is computed here, from that user's
- * own rows. The model is asked to describe them, never to derive them.
+ * own rows, in that user's own timezone. The model is asked to describe
+ * them, never to derive them.
  */
 export const getCoachMessage = async (
   req: AuthRequest,
@@ -60,32 +51,36 @@ export const getCoachMessage = async (
   try {
     const userId = req.userId!;
 
-    const [user, participations, submissions] =
-      await Promise.all([
-        prisma.user.findUnique({
-          where: { id: userId },
-          select: { name: true },
-        }),
+    const [
+      user,
+      participations,
+      submissions,
+    ] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          name: true,
+          timezone: true,
+        },
+      }),
 
-        prisma.challengeParticipant.findMany(
-          {
-            where: { userId },
-            include: { challenge: true },
-          }
-        ),
-
-        prisma.dailySubmission.findMany({
+      prisma.challengeParticipant.findMany(
+        {
           where: { userId },
-          select: {
-            submittedAt: true,
-            approved: true,
-            challengeId: true,
-          },
-          orderBy: {
-            submittedAt: "asc",
-          },
-        }),
-      ]);
+          include: { challenge: true },
+        }
+      ),
+
+      prisma.dailySubmission.findMany({
+        where: { userId },
+        select: {
+          submittedAt: true,
+          approved: true,
+          challengeId: true,
+        },
+        orderBy: { submittedAt: "asc" },
+      }),
+    ]);
 
     if (!user) {
       return res.status(404).json({
@@ -93,8 +88,14 @@ export const getCoachMessage = async (
       });
     }
 
-    // ---- approved days, shared by several figures below -------------
+    const timezone =
+      user.timezone ?? "UTC";
+
+    const today = todayKey(timezone);
+
+    // ---- Approved days ------------------------------------------
     const approvedKeys = new Set<string>();
+
     const byWeekday: Record<
       string,
       number
@@ -107,120 +108,109 @@ export const getCoachMessage = async (
     for (const s of submissions) {
       if (s.approved !== true) continue;
 
-      const day = startOfDay(
-        s.submittedAt
+      const key = dayKey(
+        s.submittedAt,
+        timezone
       );
 
-      approvedKeys.add(toKey(day));
-
-      byWeekday[
-        WEEKDAYS[day.getDay()]
-      ] += 1;
+      approvedKeys.add(key);
+      byWeekday[weekdayOf(key)] += 1;
     }
 
-    const sortedDays = [
+    const activeDays = [
       ...approvedKeys,
     ].sort();
 
+    // ---- Streaks -------------------------------------------------
     let longestStreak = 0;
     let run = 0;
-    let previous: number | null = null;
 
-    for (const key of sortedDays) {
-      const time = new Date(
-        key + "T00:00:00"
-      ).getTime();
-
+    for (
+      let i = 0;
+      i < activeDays.length;
+      i++
+    ) {
       run =
-        previous !== null &&
-        time - previous === DAY_MS
+        i > 0 &&
+        daysBetween(
+          activeDays[i - 1],
+          activeDays[i]
+        ) === 1
           ? run + 1
           : 1;
 
       if (run > longestStreak)
         longestStreak = run;
-
-      previous = time;
     }
-
-    const today = startOfDay(
-      new Date()
-    ).getTime();
 
     let currentStreak = 0;
 
-    if (sortedDays.length > 0) {
-      const last = new Date(
-        sortedDays[
-          sortedDays.length - 1
-        ] + "T00:00:00"
-      ).getTime();
+    if (activeDays.length > 0) {
+      const last =
+        activeDays[
+          activeDays.length - 1
+        ];
 
       if (
         last === today ||
-        last === today - DAY_MS
+        last === previousDayKey(today)
       ) {
         currentStreak = 1;
-        let cursor = last;
 
         for (
-          let i = sortedDays.length - 2;
+          let i = activeDays.length - 2;
           i >= 0;
           i--
         ) {
-          const time = new Date(
-            sortedDays[i] + "T00:00:00"
-          ).getTime();
-
-          if (cursor - time !== DAY_MS)
+          if (
+            daysBetween(
+              activeDays[i],
+              activeDays[i + 1]
+            ) !== 1
+          )
             break;
 
           currentStreak++;
-          cursor = time;
         }
       }
     }
 
-    // ---- per challenge ---------------------------------------------
+    // ---- Per challenge -------------------------------------------
     let expectedDays = 0;
 
     const challenges =
       participations.map((p) => {
-        const from = startOfDay(
-          p.joinedAt >
-          p.challenge.startDate
-            ? p.joinedAt
-            : p.challenge.startDate
-        ).getTime();
-
-        const end = startOfDay(
-          p.challenge.endDate
-        ).getTime();
-
-        const until = Math.min(
-          end,
-          today
+        const challengeStart = dayKey(
+          p.challenge.startDate,
+          timezone
         );
 
-        const elapsed =
-          until > from
-            ? Math.round(
-                (until - from) / DAY_MS
-              )
-            : 0;
+        const joined = dayKey(
+          p.joinedAt,
+          timezone
+        );
+
+        const from =
+          joined > challengeStart
+            ? joined
+            : challengeStart;
+
+        const challengeEnd = dayKey(
+          p.challenge.endDate,
+          timezone
+        );
+
+        const until =
+          challengeEnd < today
+            ? challengeEnd
+            : today;
+
+        const elapsed = Math.max(
+          0,
+          daysBetween(from, until)
+        );
 
         expectedDays += elapsed;
-
-        const start = startOfDay(
-          p.challenge.startDate
-        ).getTime();
-
-        const totalDays = Math.max(
-          1,
-          Math.round(
-            (end - start) / DAY_MS
-          )
-        );
 
         return {
           title: p.challenge.title,
@@ -228,18 +218,25 @@ export const getCoachMessage = async (
           maxMisses:
             p.challenge.maxMisses,
           daysElapsed: elapsed,
-          totalDays,
-          approvedDays: submissions.filter(
-            (s) =>
-              s.challengeId ===
-                p.challengeId &&
-              s.approved === true
-          ).length,
+          totalDays: Math.max(
+            1,
+            daysBetween(
+              challengeStart,
+              challengeEnd
+            )
+          ),
+          approvedDays:
+            submissions.filter(
+              (s) =>
+                s.challengeId ===
+                  p.challengeId &&
+                s.approved === true
+            ).length,
         };
       });
 
     const approvedDays =
-      sortedDays.length;
+      activeDays.length;
 
     const facts: CoachFacts = {
       name: user.name,

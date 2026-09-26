@@ -1,20 +1,24 @@
 /**
  * Closing out missed days.
  *
- * Until now a miss was only ever recorded when an admin actively
- * rejected a proof. Someone who simply stopped submitting was never
- * penalised and never eliminated, which is the exact behaviour uCommit
- * exists to prevent. This closes that gap.
+ * Until this existed a miss was only ever recorded when an admin
+ * actively rejected a proof, so someone who simply stopped submitting
+ * was never penalised and never eliminated - the one accountability
+ * rule uCommit promises that it did not actually enforce.
  *
  * A day counts as missed when all of the following hold:
- *   - the day has fully elapsed (today is never judged, it is not over)
+ *   - the day has fully elapsed in the participant's own timezone
  *   - it falls inside the challenge window
  *   - it is on or after the day the participant joined
  *   - they submitted nothing at all that day
  *
  * A day where they submitted and were rejected is NOT counted here.
- * That miss was already applied when the reviewer rejected it, and
- * double counting it would take the penalty twice.
+ * That miss was applied when the reviewer rejected it, and counting it
+ * again would take the penalty twice.
+ *
+ * Days are the user's own calendar days, decided by utils/time.ts -
+ * the same rule submitProof uses. If the two ever disagreed, this job
+ * would charge people for days they had actually shown up for.
  *
  * Safety properties, in order of importance:
  *
@@ -29,26 +33,22 @@
  *   3. Transactional per participant. A participant's penalties, miss
  *      count, elimination and audit rows all commit together or not
  *      at all.
- *
- * Days are bounded by server local time, the same way "already
- * submitted today" is decided in submission.controller.ts. If uCommit
- * ever serves users across timezones this needs revisiting in both
- * places together.
  */
 
 import prisma from "../prisma/client";
 
-/** Midnight at the start of the day containing `d`, server local time. */
-function startOfDay(d: Date): Date {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
+import {
+  dayKey,
+  todayKey,
+  dayKeysBetween,
+  queryFloor,
+} from "../utils/time";
 
-function addDays(d: Date, n: number): Date {
-  const copy = new Date(d);
-  copy.setDate(copy.getDate() + n);
-  return copy;
+/** Midday UTC on a day key - a stable instant to store for that day. */
+function keyToStoredDate(
+  key: string
+): Date {
+  return new Date(key + "T12:00:00Z");
 }
 
 export interface MissedDayOutcome {
@@ -65,6 +65,7 @@ export interface ParticipantOutcome {
   userName: string;
   challengeId: string;
   challengeTitle: string;
+  timezone: string;
   missedDays: MissedDayOutcome[];
   totalPenalty: number;
   eliminated: boolean;
@@ -72,8 +73,6 @@ export interface ParticipantOutcome {
 
 export interface CloseResult {
   dryRun: boolean;
-  /** Day boundary used; days on or after this were not judged. */
-  judgedUpTo: string;
   participantsChecked: number;
   participantsAffected: number;
   daysPenalised: number;
@@ -95,15 +94,11 @@ export async function closeMissedDays(
   const dryRun = options.dryRun !== false;
   const now = options.asOf ?? new Date();
 
-  // Today is still in progress, so the last judgeable day is yesterday.
-  const cutoff = startOfDay(now);
-
   const participants =
     await prisma.challengeParticipant.findMany(
       {
         where: {
           eliminated: false,
-
           challenge: {
             completed: false,
             ...(options.challengeId
@@ -116,6 +111,7 @@ export async function closeMissedDays(
             select: {
               id: true,
               name: true,
+              timezone: true,
             },
           },
           challenge: true,
@@ -132,26 +128,51 @@ export async function closeMissedDays(
   for (const participant of participants) {
     const { challenge } = participant;
 
-    // Start from the later of the challenge opening and them joining,
-    // so nobody is punished for days before they committed.
-    const firstDay = startOfDay(
-      participant.joinedAt >
-        challenge.startDate
-        ? participant.joinedAt
-        : challenge.startDate
+    const timezone =
+      participant.user.timezone ?? "UTC";
+
+    // Today is still in progress in their timezone, so the last
+    // judgeable day is the one before it.
+    const today = todayKey(
+      timezone,
+      now
     );
 
-    // Stop at whichever comes first: the challenge ending, or yesterday.
-    const challengeEnd = startOfDay(
-      challenge.endDate
+    // Start from the later of the challenge opening and them joining,
+    // so nobody is punished for days before they committed.
+    const challengeStart = dayKey(
+      challenge.startDate,
+      timezone
+    );
+
+    const joined = dayKey(
+      participant.joinedAt,
+      timezone
+    );
+
+    const firstDay =
+      joined > challengeStart
+        ? joined
+        : challengeStart;
+
+    // Stop at whichever comes first: the challenge ending, or today.
+    const challengeEnd = dayKey(
+      challenge.endDate,
+      timezone
     );
 
     const lastDay =
-      challengeEnd < cutoff
+      challengeEnd < today
         ? challengeEnd
-        : cutoff;
+        : today;
 
     if (firstDay >= lastDay) continue;
+
+    const candidateDays =
+      dayKeysBetween(firstDay, lastDay);
+
+    if (candidateDays.length === 0)
+      continue;
 
     const submissions =
       await prisma.dailySubmission.findMany(
@@ -161,8 +182,7 @@ export async function closeMissedDays(
             challengeId:
               participant.challengeId,
             submittedAt: {
-              gte: firstDay,
-              lt: lastDay,
+              gte: queryFloor(firstDay),
             },
           },
           select: { submittedAt: true },
@@ -171,42 +191,28 @@ export async function closeMissedDays(
 
     const daysWithSubmission = new Set(
       submissions.map((s) =>
-        startOfDay(
-          s.submittedAt
-        ).getTime()
+        dayKey(s.submittedAt, timezone)
       )
     );
 
     const alreadyPenalised = new Set(
       participant.missedDays.map((m) =>
-        startOfDay(m.date).getTime()
+        m.date
+          .toISOString()
+          .slice(0, 10)
       )
     );
 
-    // Walk the elapsed days in order. Order matters: penalties compound
-    // on the remaining stake, so the sequence changes the amounts.
-    const missed: Date[] = [];
-
-    for (
-      let day = firstDay;
-      day < lastDay;
-      day = addDays(day, 1)
-    ) {
-      const key = day.getTime();
-
-      if (daysWithSubmission.has(key))
-        continue;
-
-      if (alreadyPenalised.has(key))
-        continue;
-
-      missed.push(new Date(day));
-    }
+    const missed = candidateDays.filter(
+      (key) =>
+        !daysWithSubmission.has(key) &&
+        !alreadyPenalised.has(key)
+    );
 
     if (missed.length === 0) continue;
 
     // Replay the penalties to work out the result. In a dry run this is
-    // the whole job; otherwise it is written inside a transaction below.
+    // the whole job; otherwise it is written in a transaction below.
     let stake = participant.currentStake;
     let misses = participant.misses;
     let eliminated = false;
@@ -214,7 +220,7 @@ export async function closeMissedDays(
     const dayOutcomes: MissedDayOutcome[] =
       [];
 
-    for (const day of missed) {
+    for (const key of missed) {
       if (eliminated) break;
 
       const penalty =
@@ -229,7 +235,7 @@ export async function closeMissedDays(
         misses > challenge.maxMisses;
 
       dayOutcomes.push({
-        date: day.toISOString(),
+        date: key,
         penaltyAmount: Number(
           penalty.toFixed(2)
         ),
@@ -252,7 +258,7 @@ export async function closeMissedDays(
               data: {
                 participantId:
                   participant.id,
-                date: new Date(
+                date: keyToStoredDate(
                   outcome.date
                 ),
                 penaltyAmount:
@@ -283,6 +289,7 @@ export async function closeMissedDays(
       userName: participant.user.name,
       challengeId: challenge.id,
       challengeTitle: challenge.title,
+      timezone,
       missedDays: dayOutcomes,
       totalPenalty: Number(
         totalPenalty.toFixed(2)
@@ -293,7 +300,6 @@ export async function closeMissedDays(
 
   return {
     dryRun,
-    judgedUpTo: cutoff.toISOString(),
     participantsChecked:
       participants.length,
     participantsAffected:

@@ -26,6 +26,23 @@ const {
 before(ensureServer);
 after(cleanup);
 
+/**
+ * These fixtures build dates with setHours, i.e. in the server's own
+ * local time. Participants are pinned to that same zone so a fixture
+ * saying "midnight three days ago" means exactly that to the closer.
+ * Cross timezone behaviour is covered in timezone.test.ts.
+ */
+const SERVER_ZONE =
+  Intl.DateTimeFormat().resolvedOptions()
+    .timeZone || "UTC";
+
+const pinZone = async (userId: string) => {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { timezone: SERVER_ZONE },
+  });
+};
+
 const startOfDay = (d: Date) => {
   const c = new Date(d);
   c.setHours(0, 0, 0, 0);
@@ -46,6 +63,7 @@ async function setup(
   challengeOverrides: any = {}
 ) {
   const user = await makeUser(500);
+  await pinZone(user.id);
 
   const challenge = await makeChallenge({
     startDate: daysAgo(
@@ -253,6 +271,7 @@ test("today is never counted, because it is not over", async () => {
 
 test("days before the participant joined are not counted", async () => {
   const user = await makeUser(500);
+  await pinZone(user.id);
 
   // Challenge opened 10 days ago, they joined 2 days ago.
   const challenge = await makeChallenge({

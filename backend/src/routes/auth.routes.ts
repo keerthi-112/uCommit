@@ -4,6 +4,7 @@ import {
   register,
   login,
   me,
+  updateTimezone,
 } from "../controllers/auth.controller";
 
 import { authMiddleware } from "../middleware/auth.middleware";
@@ -31,6 +32,12 @@ router.get(
   "/me",
   authMiddleware,
   me
+);
+
+router.put(
+  "/timezone",
+  authMiddleware,
+  updateTimezone
 );
 
 export default router;

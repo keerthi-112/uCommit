@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import prisma from "../prisma/client";
 import { generateToken } from "../utils/jwt";
+import { isValidTimezone } from "../utils/time";
 
 export const register = async (
   req: Request,
@@ -72,6 +73,14 @@ export const register = async (
           name: name.trim(),
           email,
           passwordHash,
+
+          // Sent by the browser so the user's day starts and ends where
+          // they are. Anything unrecognised falls back to UTC.
+          timezone: isValidTimezone(
+            req.body?.timezone
+          )
+            ? req.body.timezone
+            : "UTC",
 
           wallet: {
             create: {},
@@ -186,6 +195,7 @@ export const me = async (
           name: true,
           email: true,
           role: true,
+          timezone: true,
           trustScore: true,
           consistencyScore: true,
           createdAt: true,
@@ -203,6 +213,45 @@ export const me = async (
       user,
     });
   } catch {
+    return res.status(500).json({
+      message: "Server Error",
+    });
+  }
+};
+
+/**
+ * Records the caller's timezone.
+ *
+ * The browser knows it and the server cannot guess it, so the client
+ * reports it after signing in. It decides where this user's day starts,
+ * which is what makes "already submitted today" and the missed-day job
+ * agree with what the user sees on their own calendar.
+ */
+export const updateTimezone = async (
+  req: Request & { userId?: string },
+  res: Response
+) => {
+  try {
+    const timezone = req.body?.timezone;
+
+    if (!isValidTimezone(timezone)) {
+      return res.status(400).json({
+        message:
+          "A valid IANA timezone is required",
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { timezone },
+    });
+
+    return res.status(200).json({
+      timezone,
+    });
+  } catch (error) {
+    console.log(error);
+
     return res.status(500).json({
       message: "Server Error",
     });

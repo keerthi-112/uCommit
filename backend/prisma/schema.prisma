@@ -15,6 +15,12 @@ model User {
 
   role String @default("USER")
 
+  /// IANA zone, e.g. "Asia/Kolkata". Decides where this user's day
+  /// starts and ends: whether a proof counts as today, and which days
+  /// the close-out job treats as missed. Detected from the browser at
+  /// sign up; UTC until we know better.
+  timezone String @default("UTC")
+
   trustScore       Int      @default(50)
   consistencyScore Int      @default(50)
 

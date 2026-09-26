@@ -1,59 +1,37 @@
 import { Request, Response } from "express";
 import prisma from "../prisma/client";
 
+import {
+  dayKey,
+  todayKey,
+  daysBetween,
+  previousDayKey,
+} from "../utils/time";
+
 interface AuthRequest extends Request {
   userId?: string;
-}
-
-const DAY_MS = 86400000;
-
-/** Midnight at the start of the day containing `d`, server local time. */
-function startOfDay(d: Date): Date {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-/**
- * A day key in LOCAL time.
- *
- * Deliberately not toISOString().slice(0, 10): that converts to UTC, so
- * east of Greenwich local midnight lands on the previous UTC date and
- * every key shifts back a day, breaking comparisons against today.
- */
-function toKey(d: Date): string {
-  const day = startOfDay(d);
-
-  const month = String(
-    day.getMonth() + 1
-  ).padStart(2, "0");
-
-  const date = String(
-    day.getDate()
-  ).padStart(2, "0");
-
-  return `${day.getFullYear()}-${month}-${date}`;
 }
 
 /**
  * The signed in user's dashboard.
  *
- * Every figure here is computed from their own rows. Definitions are
- * fixed here rather than left to the UI, so the same number means the
- * same thing everywhere:
+ * Every figure here is computed from their own rows, in their own
+ * timezone. Definitions are fixed here rather than left to the UI, so
+ * the same number means the same thing everywhere:
  *
  *   activeDay      - a day with at least one APPROVED submission.
  *                    Pending and rejected proof does not count, because
- *                    an unreviewed proof is not yet evidence of anything.
+ *                    an unreviewed proof is not yet evidence of
+ *                    anything.
  *
  *   currentStreak  - consecutive active days ending today or yesterday.
- *                    Yesterday still counts so the streak does not
+ *                    Yesterday still counts, so the streak does not
  *                    appear to break before today is over.
  *
  *   longestStreak  - the longest run of consecutive active days ever.
  *
- *   consistency    - approved days divided by the days the user has been
- *                    expected to show up, across all their
+ *   consistency    - approved days divided by the days the user has
+ *                    been expected to show up, across all their
  *                    participations, capped at 100. Null when nothing
  *                    has been expected yet, rather than a made up 0.
  */
@@ -65,11 +43,17 @@ export const getDashboard = async (
     const userId = req.userId!;
 
     const [
+      user,
       wallet,
       participations,
       rewards,
       submissions,
     ] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { timezone: true },
+      }),
+
       prisma.wallet.findUnique({
         where: { userId },
       }),
@@ -96,8 +80,12 @@ export const getDashboard = async (
       }),
     ]);
 
+    const timezone =
+      user?.timezone ?? "UTC";
+
+    const today = todayKey(timezone);
+
     // ---- Daily activity ----------------------------------------
-    // One entry per day, counting approved submissions on that day.
     const activity = new Map<
       string,
       number
@@ -106,7 +94,10 @@ export const getDashboard = async (
     for (const s of submissions) {
       if (s.approved !== true) continue;
 
-      const key = toKey(s.submittedAt);
+      const key = dayKey(
+        s.submittedAt,
+        timezone
+      );
 
       activity.set(
         key,
@@ -114,103 +105,105 @@ export const getDashboard = async (
       );
     }
 
-    const activeDayKeys = [
+    const activeDays = [
       ...activity.keys(),
     ].sort();
 
     // ---- Streaks -----------------------------------------------
     let longestStreak = 0;
     let run = 0;
-    let previous: number | null = null;
 
-    for (const key of activeDayKeys) {
-      const time = new Date(
-        key + "T00:00:00"
-      ).getTime();
-
+    for (
+      let i = 0;
+      i < activeDays.length;
+      i++
+    ) {
       run =
-        previous !== null &&
-        time - previous === DAY_MS
+        i > 0 &&
+        daysBetween(
+          activeDays[i - 1],
+          activeDays[i]
+        ) === 1
           ? run + 1
           : 1;
 
       if (run > longestStreak)
         longestStreak = run;
-
-      previous = time;
     }
 
     // A streak is only "current" if it reaches today or yesterday.
-    const today = startOfDay(
-      new Date()
-    ).getTime();
-
     let currentStreak = 0;
 
-    if (activeDayKeys.length > 0) {
-      const last = new Date(
-        activeDayKeys[
-          activeDayKeys.length - 1
-        ] + "T00:00:00"
-      ).getTime();
+    if (activeDays.length > 0) {
+      const last =
+        activeDays[
+          activeDays.length - 1
+        ];
 
       if (
         last === today ||
-        last === today - DAY_MS
+        last === previousDayKey(today)
       ) {
         currentStreak = 1;
 
-        let cursor = last;
-
         for (
-          let i =
-            activeDayKeys.length - 2;
+          let i = activeDays.length - 2;
           i >= 0;
           i--
         ) {
-          const time = new Date(
-            activeDayKeys[i] +
-              "T00:00:00"
-          ).getTime();
-
-          if (cursor - time !== DAY_MS)
+          if (
+            daysBetween(
+              activeDays[i],
+              activeDays[i + 1]
+            ) !== 1
+          )
             break;
 
           currentStreak++;
-          cursor = time;
         }
       }
     }
 
     // ---- Expected days, for consistency ------------------------
-    // Days elapsed since joining each challenge, bounded by its end.
     let expectedDays = 0;
 
     for (const p of participations) {
-      const from = startOfDay(
-        p.joinedAt >
-        p.challenge.startDate
-          ? p.joinedAt
-          : p.challenge.startDate
-      ).getTime();
-
-      const challengeEnd = startOfDay(
-        p.challenge.endDate
-      ).getTime();
-
-      const until = Math.min(
-        challengeEnd,
-        today
+      const challengeStart = dayKey(
+        p.challenge.startDate,
+        timezone
       );
 
-      if (until > from) {
-        expectedDays +=
-          (until - from) / DAY_MS;
-      }
+      const joined = dayKey(
+        p.joinedAt,
+        timezone
+      );
+
+      const from =
+        joined > challengeStart
+          ? joined
+          : challengeStart;
+
+      const challengeEnd = dayKey(
+        p.challenge.endDate,
+        timezone
+      );
+
+      const until =
+        challengeEnd < today
+          ? challengeEnd
+          : today;
+
+      const elapsed = daysBetween(
+        from,
+        until
+      );
+
+      if (elapsed > 0)
+        expectedDays += elapsed;
     }
 
     const approvedDays =
-      activeDayKeys.length;
+      activeDays.length;
 
     const consistency =
       expectedDays > 0
@@ -250,14 +243,13 @@ export const getDashboard = async (
       wallet,
       challenges: participations,
       rewards,
+      timezone,
 
       stats: {
         currentStreak,
         longestStreak,
         approvedDays,
-        expectedDays: Math.round(
-          expectedDays
-        ),
+        expectedDays,
         consistency,
         activeChallenges,
         completedChallenges,
@@ -270,7 +262,7 @@ export const getDashboard = async (
           ).length,
       },
 
-      // [{ date: "2026-09-25", count: 2 }] - approved submissions per day.
+      // [{ date: "2026-09-26", count: 2 }] - approved proof per day.
       activity: [...activity.entries()]
         .map(([date, count]) => ({
           date,
