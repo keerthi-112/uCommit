@@ -16,8 +16,8 @@ services:
     # devDependencies (tsc, vite) are needed to build, and NODE_ENV is
     # production here, so they have to be asked for explicitly.
     buildCommand: >-
-      cd frontend && npm ci --include=dev && VITE_API_URL=/api npm run build &&
-      cd ../backend && npm ci --include=dev && npm run build
+      cd frontend && npm install --include=dev && VITE_API_URL=/api npm run build &&
+      cd ../backend && npm install --include=dev && npm run build
     # The free plan has no pre-deploy step, so migrations run on start.
     # migrate deploy only applies pending migrations; it never resets.
     startCommand: cd backend && npx prisma migrate deploy && npm start
