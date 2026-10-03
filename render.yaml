@@ -1,0 +1,47 @@
+# Render Blueprint: one free web service serving both the API (under
+# /api) and the built web app, plus a free PostgreSQL database.
+# Deploy: https://render.com/deploy?repo=https://github.com/keerthi-112/uCommit
+
+databases:
+  - name: ucommit-db
+    plan: free
+    databaseName: ucommit
+    user: ucommit
+
+services:
+  - type: web
+    name: ucommit
+    runtime: node
+    plan: free
+    # devDependencies (tsc, vite) are needed to build, and NODE_ENV is
+    # production here, so they have to be asked for explicitly.
+    buildCommand: >-
+      cd frontend && npm ci --include=dev && VITE_API_URL=/api npm run build &&
+      cd ../backend && npm ci --include=dev && npm run build
+    # The free plan has no pre-deploy step, so migrations run on start.
+    # migrate deploy only applies pending migrations; it never resets.
+    startCommand: cd backend && npx prisma migrate deploy && npm start
+    healthCheckPath: /api/
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "true"
+      - key: FRONTEND_DIST
+        value: ../frontend/dist
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ucommit-db
+          property: connectionString
+      # The web app is same-origin, so this only has to be non-empty to
+      # stop other sites calling the API with a visitor's browser.
+      - key: ALLOWED_ORIGINS
+        value: https://ucommit.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENABLE_DAY_CLOSE
+        value: "false"
+      - key: ANTHROPIC_API_KEY
+        sync: false

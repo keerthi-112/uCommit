@@ -30,6 +30,23 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 ---
 
+## The quick way: Render Blueprint
+
+`render.yaml` describes the whole thing for Render's free tier: a
+PostgreSQL database and one web service that serves the web app and the
+API (under `/api`) from the same URL, so there is no CORS or
+`VITE_API_URL` to get right. Migrations run on every start, and
+`JWT_SECRET` is generated for you.
+
+Open https://render.com/deploy?repo=https://github.com/keerthi-112/uCommit
+and click **Apply**. Free services sleep after 15 minutes idle (the first
+request takes ~a minute to wake), and Render's free database expires
+after 30 days unless upgraded.
+
+The rest of this document is the manual route, with separate hosts.
+
+---
+
 ## 1. The database
 
 Any managed PostgreSQL works. Neon, Supabase and Railway all have free

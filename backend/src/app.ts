@@ -1,3 +1,4 @@
+import path from "path";
 import express from "express";
 import cors from "cors";
 
@@ -71,32 +72,59 @@ app.use(
 
 app.use(express.json());
 
+const api = express.Router();
+
 // Backstop for every route. The auth endpoints add stricter limits of
 // their own in auth.routes.ts.
-app.use(generalLimiter);
+api.use(generalLimiter);
 
-app.get("/", (req, res) => {
+api.get("/", (req, res) => {
   res.send("uCommit Backend Running");
 });
 
-app.use("/auth", authRoutes);
+api.use("/auth", authRoutes);
 
 // Both routers are mounted on /challenges. submissionRoutes stays first
 // so its specific paths (/pending, /submissions/:id/...) are matched
 // before challengeRoutes' parameterised ones.
-app.use("/challenges", submissionRoutes);
-app.use("/challenges", challengeRoutes);
+api.use("/challenges", submissionRoutes);
+api.use("/challenges", challengeRoutes);
 
-app.use("/wallet", walletRoutes);
+api.use("/wallet", walletRoutes);
 
-app.use("/rewards", rewardRoutes);
+api.use("/rewards", rewardRoutes);
 
-app.use("/dashboard", dashboardRoutes);
+api.use("/dashboard", dashboardRoutes);
 
-app.use("/fraud", fraudRoutes);
+api.use("/fraud", fraudRoutes);
 
-app.use("/admin", dayCloseRoutes);
+api.use("/admin", dayCloseRoutes);
 
-app.use("/ai", coachRoutes);
+api.use("/ai", coachRoutes);
+
+/**
+ * FRONTEND_DIST, when set, is the built web app (frontend/dist). The
+ * API then lives under /api and every other path serves the app, so
+ * one service hosts both on one origin. React Router owns paths like
+ * /challenges/:id, which would otherwise collide with the API's.
+ *
+ * Unset, as in local development and the tests, the API stays at the
+ * root.
+ */
+const frontendDist = process.env.FRONTEND_DIST;
+
+if (frontendDist) {
+  const root = path.resolve(frontendDist);
+
+  app.use("/api", api);
+  app.use(express.static(root));
+
+  // Deep links and refreshes are routes, not files on disk.
+  app.get("/{*splat}", (req, res) => {
+    res.sendFile(path.join(root, "index.html"));
+  });
+} else {
+  app.use(api);
+}
 
 export default app;
